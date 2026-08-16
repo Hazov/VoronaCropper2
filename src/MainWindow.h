@@ -9,6 +9,10 @@ class QLineEdit;
 class CropCanvas;
 #include <QPixmap>
 #include <QVector>
+#include <QPushButton>
+#include <QProgressBar>
+
+class QKeyEvent;
 
 class MainWindow : public QMainWindow
 {
@@ -20,6 +24,8 @@ public:
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+    void markCurrentPhoto();
 
 private:
     void setupUi();
@@ -47,7 +53,21 @@ private:
     enum class Stage
     {
         Crop,
-        Light
+        Light,
+        Save
+    };
+    
+    enum class SaveSourceType
+    {
+        Directory,
+        SingleFile,
+        MultipleFiles
+    };
+    
+    enum class LightParameter
+    {
+        Levels,
+        Curves
     };
 
     Stage currentStage = Stage::Crop;
@@ -76,6 +96,12 @@ private:
     QVector<ImageItem> images;
     int currentImageIndex;
     
+    SaveSourceType saveSourceType =
+    SaveSourceType::MultipleFiles;
+
+    QString sourceDirectory;
+    QString saveHash;   
+    
     void choosePhotosFromDialog();
     
     void applyCropSize() const;
@@ -89,8 +115,8 @@ private:
     
     QLabel *stageTitleLabel;
 
-    QLabel *levelsImageLabel;
     QLabel *curvesImageLabel;
+    QLabel *levelsImageLabel;
 
     QLabel *levelsTextLabel;
     QLabel *curvesTextLabel;
@@ -106,5 +132,31 @@ private:
     
     QLabel *movementLabel;
     
+    bool m_fitImageMode = false;
+    bool m_fitImageWithMargins = false;
+    
+    
+    void handleLightKey(
+    QKeyEvent* event
+    );
+    
+    QPushButton *saveButton;
+    void saveAllImages();
+    
+    QString getSaveDirectory() const;
+    QString getSaveFilePath(const ImageItem& item) const;
+    
+    bool saveImage(const ImageItem& item);
+
+    QString getDesktopPath() const;
+    
+    QString makeUniquePath(const QString& path) const;
+    QString saveDirectoryPath;
+    
+    void showDesktop();
+    
+    QWidget *imageContainer;
+    
+    QProgressBar *saveProgressBar;
     
 };

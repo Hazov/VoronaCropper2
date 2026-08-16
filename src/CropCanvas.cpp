@@ -61,12 +61,19 @@ void CropCanvas::setImage(const QImage& image)
     update();
 }
 
+
 void CropCanvas::clearImage()
 {
     setCursor(Qt::PointingHandCursor);
 
     m_image = QImage();
     m_scaledImage = QImage();
+
+    m_showCropResult = false;
+    m_fitImageMode = false;
+
+    m_mouseMode = MouseMode::None;
+    m_resizeHandle = ResizeHandle::None;
 
     update();
 }
@@ -346,14 +353,16 @@ void CropCanvas::paintEvent(QPaintEvent* event)
         true
     );
 
-    painter.fillRect(
-        rect(),
-        QColor(128, 128, 128)
-    );
-
+    // =========================================================
+    // Нет фотографии
+    // =========================================================
     if (m_image.isNull())
     {
-        painter.setPen(Qt::white);
+
+        // Тёмный текст
+        painter.setPen(
+            QColor("#333333")
+        );
 
         QFont font = painter.font();
         font.setPointSize(14);
@@ -368,6 +377,16 @@ void CropCanvas::paintEvent(QPaintEvent* event)
         return;
     }
 
+    // =========================================================
+    // Фотография загружена
+    // =========================================================
+
+    // Серый фон вокруг фотографии
+    painter.fillRect(
+        rect(),
+        QColor(128, 128, 128)
+    );
+
     if (m_showCropResult)
     {
         painter.drawImage(
@@ -381,14 +400,25 @@ void CropCanvas::paintEvent(QPaintEvent* event)
     const QRectF imageRect =
         imageRectOnScreen();
 
-    painter.drawImage(
-        imageRect,
-        m_scaledImage
-    );
-
-
     const QRectF cropRect =
         cropRectOnScreen();
+
+    const QRectF displayImageRect =
+        displayImageRectOnScreen();
+
+    if (m_fitImageMode)
+    {
+        // Белый фон внутри рамки.
+        painter.fillRect(
+            cropRectOnScreen(),
+            Qt::white
+        );
+    }
+
+    painter.drawImage(
+        displayImageRect,
+        m_scaledImage
+    );
 
     if (m_image.size() != m_scaledImage.size())
     {
@@ -620,6 +650,91 @@ void CropCanvas::keyPressEvent(
         return;
     }
 
+    if (event->key() == Qt::Key_Left ||
+    event->key() == Qt::Key_Right ||
+    event->key() == Qt::Key_Up ||
+    event->key() == Qt::Key_Down)
+    {
+        // По умолчанию считаем, что CropCanvas
+        // должен обработать стрелку сам.
+        event->setAccepted(false);
+
+        emit keyPressed(event);
+
+        // Если MainWindow обработал клавишу
+        // (это происходит на стадии Light),
+        // CropCanvas больше ничего не делает.
+        if (event->isAccepted())
+            return;
+    }
+
+    if (event->key() == Qt::Key_Escape)
+    {
+        if (m_fitImageMode)
+        {
+            exitFitImageMode();
+
+            event->accept();
+            return;
+        }
+
+        emit backRequested();
+
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Backspace)
+    {
+        emit backRequested();
+
+        event->accept();
+        return;
+    }
+
+    // =========================================================
+    // ENTER / SHIFT+ENTER
+    // =========================================================
+
+    // =========================================================
+    // SHIFT — включение/выключение fit-режима
+    // =========================================================
+
+    if (event->key() == Qt::Key_Shift)
+    {
+        toggleFitImageMode();
+
+        event->accept();
+        return;
+    }
+
+    // =========================================================
+    // ENTER — переход вперёд
+    // =========================================================
+
+    if (event->key() == Qt::Key_Return ||
+        event->key() == Qt::Key_Enter)
+    {
+        emit forwardRequested();
+
+        event->accept();
+        return;
+    }
+
+    // =========================================================
+    // В fit-режиме остальные клавиши не работают
+    // =========================================================
+
+    if (m_fitImageMode)
+    {
+        event->accept();
+        return;
+    }
+
+    // =========================================================
+    // ОСТАЛЬНЫЕ КЛАВИШИ
+    // =========================================================
+
     const double scale =
         imageToScreenScale();
 
@@ -653,21 +768,7 @@ void CropCanvas::keyPressEvent(
     if (event->nativeVirtualKey() == 0x58)
     {
         emit toggleOrientationRequested();
-        event->accept();
-        return;
-    }
 
-    if (event->key() == Qt::Key_Return ||
-        event->key() == Qt::Key_Enter)
-    {
-        emit forwardRequested();
-        event->accept();
-        return;
-    }
-
-    if (event->key() == Qt::Key_Backspace)
-    {
-        emit backRequested();
         event->accept();
         return;
     }
@@ -899,6 +1000,7 @@ void CropCanvas::updateScaledImage()
     if (m_image.isNull())
     {
         m_scaledImage = QImage();
+        m_lightPreviewSource = QImage();
         return;
     }
 
@@ -906,19 +1008,58 @@ void CropCanvas::updateScaledImage()
 
     const double scale =
         std::min(
-            availableSize.width() / m_image.width(),
-            availableSize.height() / m_image.height()
+            availableSize.width() /
+            m_image.width(),
+
+            availableSize.height() /
+            m_image.height()
         );
 
     const int width =
-        qMax(1, static_cast<int>(
-                 m_image.width() * scale
-             ));
+        qMax(
+            1,
+            static_cast<int>(
+                m_image.width() * scale
+            )
+        );
 
     const int height =
-        qMax(1, static_cast<int>(
-                 m_image.height() * scale
-             ));
+        qMax(
+            1,
+            static_cast<int>(
+                m_image.height() * scale
+            )
+        );
+
+    // =========================================================
+    // Свет
+    // =========================================================
+
+    if (m_showCropResult &&
+        !m_lightSourceImage.isNull())
+    {
+        m_lightPreviewSource =
+            m_lightSourceImage.scaled(
+                width,
+                height,
+                Qt::KeepAspectRatio,
+                Qt::SmoothTransformation
+            );
+
+        m_scaledImage =
+            applyLightEffects(
+                m_lightPreviewSource
+            );
+
+        return;
+    }
+
+    // =========================================================
+    // Обычный режим
+    // =========================================================
+
+    m_lightPreviewSource =
+        QImage();
 
     m_scaledImage =
         m_image.scaled(
@@ -996,6 +1137,12 @@ void CropCanvas::mousePressEvent(QMouseEvent* event)
         return;
     }
 
+    if (m_fitImageMode)
+    {
+        event->accept();
+        return;
+    }
+
     if (m_image.isNull())
     {
         emit emptyCanvasClicked();
@@ -1047,33 +1194,33 @@ void CropCanvas::mousePressEvent(QMouseEvent* event)
     event->ignore();
 }
 
-void CropCanvas::setDisplayImage(const QImage& image)
-{
-    m_image = image;
-
-    if (m_image.isNull())
-    {
-        m_scaledImage = QImage();
-        update();
-        return;
-    }
-
-    updateScaledImage();
-
-    update();
-}
-
 void CropCanvas::setDisplayImage(
     const QImage& image,
-    bool showCropResult)
+    bool showCropResult
+)
 {
-    m_image = image;
-    m_showCropResult = showCropResult;
+    if (showCropResult)
+    {
+        m_lightSourceImage = image;
+
+        m_image = image;
+    }
+    else
+    {
+        m_lightSourceImage = QImage();
+        m_lightPreviewSource = QImage();
+
+        m_image = image;
+
+        m_lightSettings = LightSettings{};
+    }
+
+    m_showCropResult =
+        showCropResult;
 
     if (m_image.isNull())
     {
         m_scaledImage = QImage();
-        update();
         return;
     }
 
@@ -1193,6 +1340,19 @@ bool CropCanvas::isInsideCropRect(
 void CropCanvas::mouseMoveEvent(
     QMouseEvent* event)
 {
+    if (m_fitImageMode)
+    {
+        setCursor(Qt::ArrowCursor);
+        event->accept();
+        return;
+    }
+
+    if (m_fitImageMode)
+    {
+        event->accept();
+        return;
+    }
+
     if (m_image.isNull())
         return;
 
@@ -2323,4 +2483,765 @@ void CropCanvas::setCropPixelSize(
     m_cropPixelHeight = height;
 
     update();
+}
+
+void CropCanvas::toggleFitImageMode()
+{
+    if (!m_fitImageMode)
+    {
+        // Первое Shift+Enter:
+        // входим в режим подгонки
+        // без дополнительных полей.
+
+        m_fitImageMode = true;
+        m_fitImageWithMargins = false;
+    }
+    else
+    {
+        // Следующие Shift+Enter:
+        // переключаем:
+        //
+        // 0 мм <-> 4 мм
+
+        m_fitImageWithMargins =
+            !m_fitImageWithMargins;
+    }
+
+    // В режиме подгонки:
+    // рамку нельзя двигать;
+    // рамку нельзя изменять.
+
+    m_mouseMode =
+        MouseMode::None;
+
+    m_resizeHandle =
+        ResizeHandle::None;
+
+    setCursor(
+        Qt::ArrowCursor
+    );
+
+    update();
+}
+
+void CropCanvas::exitFitImageMode()
+{
+    m_fitImageMode = false;
+
+    m_fitImageWithMargins = false;
+
+    m_mouseMode =
+        MouseMode::None;
+
+    m_resizeHandle =
+        ResizeHandle::None;
+
+    setCursor(
+        Qt::ArrowCursor
+    );
+
+    update();
+}
+
+bool CropCanvas::isFitImageMode() const
+{
+    return m_fitImageMode;
+}
+
+QRectF CropCanvas::displayImageRectOnScreen() const
+{
+    const QRectF imageRect =
+        imageRectOnScreen();
+
+    if (!m_fitImageMode ||
+        m_image.isNull())
+    {
+        return imageRect;
+    }
+
+    const QRectF cropRect =
+        cropRectOnScreen();
+
+    double marginX = 0.0;
+    double marginY = 0.0;
+
+    if (m_fitImageWithMargins)
+    {
+        // 4 мм = 0.4 см
+        marginX =
+            cropRect.width()
+            * (0.4 / m_cropWidthCm);
+
+        marginY =
+            cropRect.height()
+            * (0.4 / m_cropHeightCm);
+    }
+
+    const QRectF availableRect =
+        cropRect.adjusted(
+            marginX,
+            marginY,
+            -marginX,
+            -marginY
+        );
+
+    if (availableRect.width() <= 0.0 ||
+        availableRect.height() <= 0.0)
+    {
+        return QRectF();
+    }
+
+    const double imageAspect =
+        static_cast<double>(m_image.width())
+        / static_cast<double>(m_image.height());
+
+    const double availableAspect =
+        availableRect.width()
+        / availableRect.height();
+
+    double width;
+    double height;
+
+    if (imageAspect > availableAspect)
+    {
+        // Изображение шире области.
+        width = availableRect.width();
+        height = width / imageAspect;
+    }
+    else
+    {
+        // Изображение выше области.
+        height = availableRect.height();
+        width = height * imageAspect;
+    }
+
+    const double x =
+        availableRect.left()
+        + (availableRect.width() - width) / 2.0;
+
+    const double y =
+        availableRect.top()
+        + (availableRect.height() - height) / 2.0;
+
+    return QRectF(
+        x,
+        y,
+        width,
+        height
+    );
+}
+
+bool CropCanvas::fitImageWithMargins() const
+{
+    return m_fitImageWithMargins;
+}
+
+void CropCanvas::restoreFitImageMode(
+    bool withMargins
+)
+{
+    m_fitImageMode = true;
+    m_fitImageWithMargins = withMargins;
+
+    m_mouseMode =
+        MouseMode::None;
+
+    m_resizeHandle =
+        ResizeHandle::None;
+
+    setCursor(Qt::ArrowCursor);
+
+    update();
+}
+
+QImage CropCanvas::createFitCropImage() const
+{
+    if (m_image.isNull())
+        return QImage();
+
+    const int outputWidth =
+        qRound(m_cropPixelWidth);
+
+    const int outputHeight =
+        qRound(m_cropPixelHeight);
+
+    if (outputWidth <= 0 ||
+        outputHeight <= 0)
+    {
+        return QImage();
+    }
+
+    QImage result(
+        outputWidth,
+        outputHeight,
+        QImage::Format_ARGB32
+    );
+
+    result.fill(Qt::white);
+
+    double marginX = 0.0;
+    double marginY = 0.0;
+
+    if (m_fitImageWithMargins)
+    {
+        marginX =
+            outputWidth *
+            (0.4 / m_cropWidthCm);
+
+        marginY =
+            outputHeight *
+            (0.4 / m_cropHeightCm);
+    }
+
+    const QRectF availableRect(
+        marginX,
+        marginY,
+        outputWidth - 2.0 * marginX,
+        outputHeight - 2.0 * marginY
+    );
+
+    if (availableRect.width() <= 0.0 ||
+        availableRect.height() <= 0.0)
+    {
+        return result;
+    }
+
+    const double imageAspect =
+        static_cast<double>(m_image.width())
+        /
+        static_cast<double>(m_image.height());
+
+    const double availableAspect =
+        availableRect.width()
+        /
+        availableRect.height();
+
+    double drawWidth;
+    double drawHeight;
+
+    if (imageAspect > availableAspect)
+    {
+        drawWidth =
+            availableRect.width();
+
+        drawHeight =
+            drawWidth / imageAspect;
+    }
+    else
+    {
+        drawHeight =
+            availableRect.height();
+
+        drawWidth =
+            drawHeight * imageAspect;
+    }
+
+    const double x =
+        availableRect.left()
+        +
+        (
+            availableRect.width()
+            - drawWidth
+        ) / 2.0;
+
+    const double y =
+        availableRect.top()
+        +
+        (
+            availableRect.height()
+            - drawHeight
+        ) / 2.0;
+
+    QPainter painter(&result);
+
+    painter.setRenderHint(
+        QPainter::SmoothPixmapTransform,
+        true
+    );
+
+    painter.drawImage(
+        QRectF(
+            x,
+            y,
+            drawWidth,
+            drawHeight
+        ),
+        m_image
+    );
+
+    painter.end();
+
+    return result;
+}
+
+QImage CropCanvas::applyLevels(
+    const QImage& image,
+    int status
+) const
+{
+    if (image.isNull())
+        return QImage();
+
+    const auto lut =
+        createLevelsLut(status);
+
+    QImage result =
+        image.convertToFormat(
+            QImage::Format_ARGB32
+        );
+
+    for (int y = 0;
+         y < result.height();
+         ++y)
+    {
+        QRgb* line =
+            reinterpret_cast<QRgb*>(
+                result.scanLine(y)
+            );
+
+        for (int x = 0;
+             x < result.width();
+             ++x)
+        {
+            const QRgb pixel =
+                line[x];
+
+            line[x] =
+                qRgba(
+                    lut[qRed(pixel)],
+                    lut[qGreen(pixel)],
+                    lut[qBlue(pixel)],
+                    qAlpha(pixel)
+                );
+        }
+    }
+
+    return result;
+}
+
+std::array<uchar, 256>
+CropCanvas::createCurvesLut(int status) const
+{
+    std::array<uchar, 256> lut{};
+
+    status =
+        std::clamp(
+            status,
+            MIN_LIGHT_STATUS,
+            MAX_LIGHT_STATUS
+        );
+
+    constexpr double inputPoint = 113.0;
+
+    double outputPoint = 113.0;
+
+    switch (status)
+    {
+    case -3:
+        outputPoint = 70.0;
+        break;
+
+    case -2:
+        outputPoint = 84.0;
+        break;
+
+    case -1:
+        outputPoint = 99.0;
+        break;
+
+    case 0:
+        outputPoint = 113.0;
+        break;
+
+    case 1:
+        outputPoint = 127.0;
+        break;
+
+    case 2:
+        outputPoint = 142.0;
+        break;
+
+    case 3:
+        outputPoint = 156.0;
+        break;
+    }
+
+    // ---------------------------------------------------------
+    // Нулевая кривая
+    // ---------------------------------------------------------
+
+    if (status == 0)
+    {
+        for (int i = 0; i < 256; ++i)
+            lut[i] = static_cast<uchar>(i);
+
+        return lut;
+    }
+
+    /*
+     * Используем кубическую Hermite-интерполяцию.
+     *
+     * Три основные точки:
+     *
+     *      (0, 0)
+     *      (113, outputPoint)
+     *      (255, 255)
+     *
+     * В отличие от предыдущего варианта,
+     * здесь форма кривой определяется непосредственно
+     * этими точками и их наклонами.
+     */
+
+    const double leftSlope =
+        outputPoint / inputPoint;
+
+    const double rightSlope =
+        (255.0 - outputPoint)
+        /
+        (255.0 - inputPoint);
+
+    // Наклон в центральной точке.
+    //
+    // Среднее между наклоном левой
+    // и правой частей.
+    const double middleSlope =
+        (leftSlope + rightSlope) / 2.0;
+
+    // ---------------------------------------------------------
+    // Левая часть
+    // ---------------------------------------------------------
+
+    for (int x = 0;
+         x <= static_cast<int>(inputPoint);
+         ++x)
+    {
+        const double t =
+            static_cast<double>(x)
+            /
+            inputPoint;
+
+        const double h =
+            inputPoint;
+
+        const double p0 = 0.0;
+        const double p1 = outputPoint;
+
+        const double m0 = leftSlope;
+        const double m1 = middleSlope;
+
+        const double t2 = t * t;
+        const double t3 = t2 * t;
+
+        const double h00 =
+            2.0 * t3
+            - 3.0 * t2
+            + 1.0;
+
+        const double h10 =
+            t3
+            - 2.0 * t2
+            + t;
+
+        const double h01 =
+            -2.0 * t3
+            + 3.0 * t2;
+
+        const double h11 =
+            t3
+            - t2;
+
+        const double result =
+            h00 * p0
+            +
+            h10 * h * m0
+            +
+            h01 * p1
+            +
+            h11 * h * m1;
+
+        lut[x] =
+            static_cast<uchar>(
+                std::clamp(
+                    qRound(result),
+                    0,
+                    255
+                )
+            );
+    }
+
+    // ---------------------------------------------------------
+    // Правая часть
+    // ---------------------------------------------------------
+
+    for (int x =
+             static_cast<int>(inputPoint);
+         x < 256;
+         ++x)
+    {
+        const double t =
+            static_cast<double>(
+                x - inputPoint
+            )
+            /
+            (255.0 - inputPoint);
+
+        const double h =
+            255.0 - inputPoint;
+
+        const double p0 =
+            outputPoint;
+
+        const double p1 =
+            255.0;
+
+        const double m0 =
+            middleSlope;
+
+        const double m1 =
+            rightSlope;
+
+        const double t2 = t * t;
+        const double t3 = t2 * t;
+
+        const double h00 =
+            2.0 * t3
+            - 3.0 * t2
+            + 1.0;
+
+        const double h10 =
+            t3
+            - 2.0 * t2
+            + t;
+
+        const double h01 =
+            -2.0 * t3
+            + 3.0 * t2;
+
+        const double h11 =
+            t3
+            - t2;
+
+        const double result =
+            h00 * p0
+            +
+            h10 * h * m0
+            +
+            h01 * p1
+            +
+            h11 * h * m1;
+
+        lut[x] =
+            static_cast<uchar>(
+                std::clamp(
+                    qRound(result),
+                    0,
+                    255
+                )
+            );
+    }
+
+    return lut;
+}
+
+std::array<uchar, 256>
+CropCanvas::createLevelsLut(int status) const
+{
+    std::array<uchar, 256> lut{};
+
+    status =
+        std::clamp(
+            status,
+            MIN_LIGHT_STATUS,
+            MAX_LIGHT_STATUS
+        );
+
+    double gamma = 1.0;
+    int whitePoint = 255;
+
+    switch (status)
+    {
+    case -3:
+        gamma = 0.85;
+        break;
+
+    case -2:
+        gamma = 0.90;
+        break;
+
+    case -1:
+        gamma = 0.95;
+        break;
+
+    case 0:
+        gamma = 1.00;
+        break;
+
+    case 1:
+        whitePoint = 245;
+        break;
+
+    case 2:
+        whitePoint = 235;
+        break;
+
+    case 3:
+        whitePoint = 225;
+        break;
+    }
+
+    for (int value = 0; value < 256; ++value)
+    {
+        double normalized =
+            static_cast<double>(value)
+            /
+            static_cast<double>(whitePoint);
+
+        normalized =
+            std::clamp(
+                normalized,
+                0.0,
+                1.0
+            );
+
+        const double corrected =
+            std::pow(
+                normalized,
+                gamma
+            );
+
+        lut[value] =
+            static_cast<uchar>(
+                std::clamp(
+                    qRound(
+                        corrected * 255.0
+                    ),
+                    0,
+                    255
+                )
+            );
+    }
+
+    return lut;
+}
+
+QImage CropCanvas::applyLightEffects(
+    const QImage& image
+) const
+{
+    QImage result = image;
+
+    if (m_lightSettings.levels != 0)
+    {
+        result =
+            applyLevels(
+                result,
+                m_lightSettings.levels
+            );
+    }
+
+    if (m_lightSettings.curves != 0)
+    {
+        result =
+            applyCurves(
+                result,
+                m_lightSettings.curves
+            );
+    }
+
+    return result;
+}
+
+void CropCanvas::updateLightPreview()
+{
+    if (m_lightPreviewSource.isNull())
+        return;
+
+    m_scaledImage =
+        applyLightEffects(
+            m_lightPreviewSource
+        );
+
+    update();
+}
+
+void CropCanvas::setLevelsStatus(int status)
+{
+    m_lightSettings.levels =
+        std::clamp(
+            status,
+            MIN_LIGHT_STATUS,
+            MAX_LIGHT_STATUS
+        );
+
+    updateLightPreview();
+}
+
+void CropCanvas::setCurvesStatus(int status)
+{
+    m_lightSettings.curves =
+        std::clamp(
+            status,
+            MIN_LIGHT_STATUS,
+            MAX_LIGHT_STATUS
+        );
+
+    updateLightPreview();
+}
+
+QImage CropCanvas::createFinalLightImage() const
+{
+    if (m_lightSourceImage.isNull())
+        return QImage();
+
+    return applyLightEffects(
+        m_lightSourceImage
+    );
+}
+
+QImage CropCanvas::applyCurves(
+    const QImage& image,
+    int status
+) const
+{
+    if (image.isNull())
+        return QImage();
+
+    const auto lut =
+        createCurvesLut(status);
+
+    if (status == 0)
+        return image;
+
+    QImage result =
+        image.convertToFormat(
+            QImage::Format_ARGB32
+        );
+
+    for (int y = 0;
+         y < result.height();
+         ++y)
+    {
+        QRgb* line =
+            reinterpret_cast<QRgb*>(
+                result.scanLine(y)
+            );
+
+        for (int x = 0;
+             x < result.width();
+             ++x)
+        {
+            const QRgb pixel =
+                line[x];
+
+            line[x] =
+                qRgba(
+                    lut[qRed(pixel)],
+                    lut[qGreen(pixel)],
+                    lut[qBlue(pixel)],
+                    qAlpha(pixel)
+                );
+        }
+    }
+
+    return result;
 }

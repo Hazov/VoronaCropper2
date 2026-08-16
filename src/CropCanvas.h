@@ -6,6 +6,12 @@
 #include <QMouseEvent>
 #include <QRectF>
 
+struct LightSettings
+{
+    int levels = 0;
+    int curves = 0;
+};
+
 class CropCanvas : public QWidget
 {
     Q_OBJECT
@@ -37,11 +43,29 @@ public:
 
     double cropPixelHeight() const;
     double cropPixelWidth() const;
-    
+
     void setCropPixelSize(
-    double width,
-    double height
-);
+        double width,
+        double height
+    );
+    void toggleFitImageMode();
+    void exitFitImageMode();
+    bool isFitImageMode() const;
+    QRectF displayImageRectOnScreen() const;
+
+    bool fitImageWithMargins() const;
+
+    void restoreFitImageMode(
+        bool withMargins
+    );
+
+    QImage createFitCropImage() const;
+
+    void setLevelsStatus(int status);
+    void setCurvesStatus(int status);
+    
+    QImage createFinalLightImage() const;
+    QImage applyCurves(const QImage& image, int status) const;
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -57,6 +81,10 @@ signals:
     void toggleOrientationRequested();
     void forwardRequested();
     void backRequested();
+    void lightKeyPressed(
+        int key
+    );
+    void keyPressed(QKeyEvent* event);
 
 private:
     enum class MouseMode
@@ -156,9 +184,39 @@ private:
     QRectF constrainResizeRect(
         const QRectF& rect
     ) const;
-    
+
     double limitResizeWidth(
-    ResizeHandle handle,
-    double desiredWidth
-) const;
+        ResizeHandle handle,
+        double desiredWidth
+    ) const;
+
+    bool m_fitImageMode = false;
+    bool m_fitImageWithMargins = false;
+
+    QImage applyLevels(
+        const QImage& image,
+        int status
+    ) const;
+    std::array<uchar, 256> createCurvesLut(int status) const;
+
+    LightSettings m_lightSettings;
+
+    QImage m_lightSourceImage;
+    QImage m_lightPreviewSource;
+
+    static constexpr int MIN_LIGHT_STATUS = -3;
+    static constexpr int MAX_LIGHT_STATUS = 3;
+
+    void updateLightPreview();
+
+    QImage applyLightEffects(
+        const QImage& image
+    ) const;
+
+    std::array<uchar, 256> createLevelsLut(
+        int status
+    ) const;
+    
+    
 };
+

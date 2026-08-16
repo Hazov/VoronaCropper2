@@ -6,9 +6,16 @@
 #include <QDebug>
 #include <cstdio>
 
+#include <windows.h>
 
 int main(int argc, char* argv[])
 {
+    
+    CoInitializeEx(
+        nullptr,
+        COINIT_APARTMENTTHREADED
+    );
+    
     qInstallMessageHandler(
         [](QtMsgType,
            const QMessageLogContext&,
@@ -27,6 +34,8 @@ int main(int argc, char* argv[])
     QApplication app(argc, argv);
     MainWindow window;
     window.show();
+    
+    CoUninitialize();
 
     return app.exec();
 }

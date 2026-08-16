@@ -208,3 +208,131 @@ void ImageItem::setCurvesStatus(int value)
         );
 }
 
+void ImageItem::setFitImageMode(
+    bool enabled,
+    bool withMargins
+)
+{
+    m_fitImageMode = enabled;
+    m_fitImageWithMargins = withMargins;
+}
+
+bool ImageItem::fitImageMode() const
+{
+    return m_fitImageMode;
+}
+
+bool ImageItem::fitImageWithMargins() const
+{
+    return m_fitImageWithMargins;
+}
+
+void ImageItem::createFittedCroppedImage(
+    const QRectF& cropRect,
+    bool withMargins
+)
+{
+    if (m_originalImage.isNull())
+        return;
+
+    const int outputWidth =
+        qRound(cropRect.width());
+
+    const int outputHeight =
+        qRound(cropRect.height());
+
+    if (outputWidth <= 0 ||
+        outputHeight <= 0)
+    {
+        return;
+    }
+
+    QImage result(
+        outputWidth,
+        outputHeight,
+        QImage::Format_ARGB32
+    );
+
+    result.fill(Qt::white);
+
+    QRect targetRect(
+        0,
+        0,
+        outputWidth,
+        outputHeight
+    );
+
+    if (withMargins)
+    {
+        const double marginX =
+            outputWidth *
+            (0.4 / m_cropWidthCm);
+
+        const double marginY =
+            outputHeight *
+            (0.4 / m_cropHeightCm);
+
+        targetRect.adjust(
+            qRound(marginX),
+            qRound(marginY),
+            -qRound(marginX),
+            -qRound(marginY)
+        );
+    }
+
+    const QSize fittedSize =
+        m_originalImage.size()
+            .scaled(
+                targetRect.size(),
+                Qt::KeepAspectRatio
+            );
+
+    const int x =
+        targetRect.x()
+        + (
+            targetRect.width()
+            - fittedSize.width()
+        ) / 2;
+
+    const int y =
+        targetRect.y()
+        + (
+            targetRect.height()
+            - fittedSize.height()
+        ) / 2;
+
+    const QRect imageTarget(
+        x,
+        y,
+        fittedSize.width(),
+        fittedSize.height()
+    );
+
+    QPainter painter(&result);
+
+    painter.drawImage(
+        imageTarget,
+        m_originalImage
+    );
+
+    painter.end();
+
+    m_croppedImage = result;
+}
+
+void ImageItem::setCroppedImage(
+    const QImage& image
+)
+{
+    m_croppedImage = image;
+}
+
+bool ImageItem::isMarked() const
+{
+    return m_marked;
+}
+
+void ImageItem::setMarked(bool marked)
+{
+    m_marked = marked;
+}

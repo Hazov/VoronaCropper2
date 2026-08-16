@@ -35,3 +35,8 @@ file(COPY
         "${CMAKE_SOURCE_DIR}/light"
         DESTINATION "${CMAKE_BINARY_DIR}"
 )
+
+file(COPY
+        "${CMAKE_SOURCE_DIR}/logo.png"
+        DESTINATION "${CMAKE_BINARY_DIR}"
+)

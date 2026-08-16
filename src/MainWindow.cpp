@@ -16,7 +16,14 @@
 #include <QVector>
 #include <QCoreApplication>
 #include <QDir>
-#include <QFile>
+#include <QFileInfo>
+#include <QStandardPaths>
+#include <QCryptographicHash>
+#include <QDesktopServices>
+#include <windows.h>
+#include <shldisp.h>
+#include <QKeyEvent>
+#include <QApplication>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
@@ -30,8 +37,12 @@ MainWindow::MainWindow(QWidget* parent)
       backLabel(nullptr),
       markLabel(nullptr),
       forwardLabel(nullptr),
+      saveButton(nullptr),
       currentImageIndex(-1),
-      movementLabel(nullptr)
+      imageContainer(nullptr),
+      movementLabel(nullptr),
+      saveProgressBar(nullptr)
+
 {
     setAcceptDrops(true);
 
@@ -68,17 +79,41 @@ MainWindow::MainWindow(QWidget* parent)
         this,
         &MainWindow::goBack
     );
+
+    connect(
+        cropCanvas,
+        &CropCanvas::keyPressed,
+        this,
+        &MainWindow::handleLightKey
+    );
 }
 
 
 void MainWindow::setupUi()
 {
-    auto* centralWidget = new QWidget(this);
-    setCentralWidget(centralWidget);
+    setWindowTitle(
+        "Быстрое кадрирование"
+    );
 
-    auto* mainLayout = new QVBoxLayout(centralWidget);
+    auto* centralWidget =
+        new QWidget(this);
 
-    mainLayout->setContentsMargins(25, 15, 25, 15);
+    setCentralWidget(
+        centralWidget
+    );
+
+    auto* mainLayout =
+        new QVBoxLayout(
+            centralWidget
+        );
+
+    mainLayout->setContentsMargins(
+        25,
+        15,
+        25,
+        15
+    );
+
     mainLayout->setSpacing(10);
 
 
@@ -86,30 +121,75 @@ void MainWindow::setupUi()
     // HEADER
     // =========================================================
 
-    auto* headerLayout = new QHBoxLayout();
+    auto* headerWidget =
+        new QWidget(this);
 
-    // ---------------------------------------------------------
-    // Левая часть header
-    // ---------------------------------------------------------
+    headerWidget->setFixedHeight(80);
 
-    auto* leftHeaderLayout = new QVBoxLayout();
+    auto* headerLayout =
+        new QGridLayout(headerWidget);
+
+    headerLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        0
+    );
+
+
+    // =========================================================
+    // ЛЕВАЯ ЧАСТЬ
+    // =========================================================
+
+    auto* leftHeaderWidget =
+        new QWidget(headerWidget);
+
+    auto* leftHeaderLayout =
+        new QVBoxLayout(leftHeaderWidget);
+
+    leftHeaderLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        0
+    );
 
     leftHeaderLayout->setSpacing(2);
 
+
     photoCounterLabel =
-        new QLabel("Фото 0 из 0", this);
+        new QLabel(
+            "Быстрое кадрирование",
+            leftHeaderWidget
+        );
+
+    photoCounterLabel->setAlignment(
+        Qt::AlignLeft
+    );
+
+    QFont titleFont =
+        photoCounterLabel->font();
+
+    titleFont.setPointSize(16);
+    titleFont.setBold(true);
+
+    photoCounterLabel->setFont(
+        titleFont
+    );
+
 
     loadNewPhotosLabel =
-        new QLabel("Загрузить новые фото", this);
+        new QLabel(
+            "Загрузить новые фото",
+            leftHeaderWidget
+        );
 
     loadNewPhotosLabel->setText(
         "<a href=\"#\">Загрузить новые фото</a>"
     );
 
-    loadNewPhotosLabel->setTextFormat(Qt::RichText);
-
-    loadNewPhotosLabel->setText(
-        "<a href=\"#\">Загрузить новые фото</a>"
+    loadNewPhotosLabel->setTextFormat(
+        Qt::RichText
     );
 
     loadNewPhotosLabel->setCursor(
@@ -123,8 +203,8 @@ void MainWindow::setupUi()
         &MainWindow::requestNewPhotos
     );
 
-    // Пока фотографий нет — ссылка скрыта.
     loadNewPhotosLabel->hide();
+
 
     leftHeaderLayout->addWidget(
         photoCounterLabel
@@ -135,89 +215,55 @@ void MainWindow::setupUi()
     );
 
 
-    // ---------------------------------------------------------
-    // Название
-    // ---------------------------------------------------------
-
-    auto* titleLabel =
-        new QLabel("Быстрое кадрирование", this);
-
-    titleLabel->setAlignment(
-        Qt::AlignCenter
-    );
-
-    QFont titleFont =
-        titleLabel->font();
-
-    titleFont.setPointSize(16);
-    titleFont.setBold(true);
-
-    titleLabel->setFont(titleFont);
-
-
-    // ---------------------------------------------------------
-    // Логотип
-    // ---------------------------------------------------------
-
-    logoLabel =
-        new QLabel("LOGO", this);
-
-    logoLabel->setAlignment(
-        Qt::AlignCenter
-    );
-
-    logoLabel->setFixedSize(
-        80,
-        40
-    );
-
-
-    // ---------------------------------------------------------
-    // Собираем header
-    // ---------------------------------------------------------
-
-    headerLayout->addLayout(
-        leftHeaderLayout
-    );
-
-    headerLayout->addStretch();
-
-    headerLayout->addWidget(
-        titleLabel
-    );
-
-    headerLayout->addStretch();
-
-    headerLayout->addWidget(
-        logoLabel
-    );
-
-    mainLayout->addLayout(
-        headerLayout
-    );
-
-
     // =========================================================
-    // РАЗМЕРЫ КАДРИРОВАНИЯ
+    // ЦЕНТР — РАЗМЕРЫ
     // =========================================================
 
-    auto* settingsLayout =
-        new QHBoxLayout();
+    auto* sizeWidget =
+        new QWidget(headerWidget);
+
+    auto* sizeLayout =
+        new QHBoxLayout(sizeWidget);
+
+    sizeLayout->setContentsMargins(
+        0,
+        0,
+        0,
+        0
+    );
+
+    sizeLayout->setSpacing(5);
+
 
     auto* widthLabel =
-        new QLabel("Ширина:", this);
+        new QLabel(
+            "Ширина:",
+            sizeWidget
+        );
 
     auto* heightLabel =
-        new QLabel("Высота:", this);
+        new QLabel(
+            "Высота:",
+            sizeWidget
+        );
+
 
     widthEdit =
-        new QLineEdit("10", this);
+        new QLineEdit(
+            "10",
+            sizeWidget
+        );
 
     heightEdit =
-        new QLineEdit("15", this);
+        new QLineEdit(
+            "15",
+            sizeWidget
+        );
+
 
     widthEdit->setFixedWidth(70);
     heightEdit->setFixedWidth(70);
+
 
     auto* sizeValidator =
         new QDoubleValidator(
@@ -235,8 +281,14 @@ void MainWindow::setupUi()
         QLocale::c()
     );
 
-    widthEdit->setValidator(sizeValidator);
-    heightEdit->setValidator(sizeValidator);
+
+    widthEdit->setValidator(
+        sizeValidator
+    );
+
+    heightEdit->setValidator(
+        sizeValidator
+    );
 
 
     connect(
@@ -253,38 +305,131 @@ void MainWindow::setupUi()
         &MainWindow::applyCropSize
     );
 
-    settingsLayout->addStretch();
 
-    settingsLayout->addWidget(
+    sizeLayout->addWidget(
         widthLabel
     );
 
-    settingsLayout->addWidget(
+    sizeLayout->addWidget(
         widthEdit
     );
 
-    settingsLayout->addWidget(
-        new QLabel("см", this)
+    sizeLayout->addWidget(
+        new QLabel(
+            "см",
+            sizeWidget
+        )
     );
 
-    settingsLayout->addSpacing(25);
 
-    settingsLayout->addWidget(
+    sizeLayout->addSpacing(25);
+
+
+    sizeLayout->addWidget(
         heightLabel
     );
 
-    settingsLayout->addWidget(
+    sizeLayout->addWidget(
         heightEdit
     );
 
-    settingsLayout->addWidget(
-        new QLabel("см", this)
+    sizeLayout->addWidget(
+        new QLabel(
+            "см",
+            sizeWidget
+        )
     );
 
-    settingsLayout->addStretch();
 
-    mainLayout->addLayout(
-        settingsLayout
+    // =========================================================
+    // ПРАВАЯ ЧАСТЬ — LOGO
+    // =========================================================
+
+    logoLabel =
+        new QLabel(headerWidget);
+
+    logoLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    const QString logoPath =
+        QDir(
+            QCoreApplication::applicationDirPath()
+        ).filePath(
+            "logo.png"
+        );
+
+
+    QPixmap logoPixmap(
+        logoPath
+    );
+
+
+    logoLabel->setPixmap(
+        logoPixmap.scaled(
+            80,
+            80,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        )
+    );
+
+
+    logoLabel->setFixedSize(
+        80,
+        80
+    );
+
+
+    // =========================================================
+    // РАСКЛАДКА HEADER
+    // =========================================================
+
+    headerLayout->addWidget(
+        leftHeaderWidget,
+        0,
+        0,
+        Qt::AlignLeft | Qt::AlignTop
+    );
+
+
+    headerLayout->addWidget(
+        sizeWidget,
+        0,
+        1,
+        Qt::AlignCenter
+    );
+
+
+    headerLayout->addWidget(
+        logoLabel,
+        0,
+        2,
+        Qt::AlignRight | Qt::AlignTop
+    );
+
+
+    // Левая и правая колонки одинаковые.
+    // Поэтому центральный блок реально находится по центру.
+    headerLayout->setColumnStretch(
+        0,
+        1
+    );
+
+    headerLayout->setColumnStretch(
+        1,
+        0
+    );
+
+    headerLayout->setColumnStretch(
+        2,
+        1
+    );
+
+
+    mainLayout->addWidget(
+        headerWidget
     );
 
 
@@ -292,16 +437,23 @@ void MainWindow::setupUi()
     // ПОДСКАЗКА СТАДИИ
     // =========================================================
 
-    stageHintWidget = new QWidget(this);
+    stageHintWidget =
+        new QWidget(this);
 
     QVBoxLayout* stageHintLayout =
-        new QVBoxLayout(stageHintWidget);
+        new QVBoxLayout(
+            stageHintWidget
+        );
 
     stageHintLayout->setContentsMargins(
-        0, 0, 0, 0
+        0,
+        0,
+        0,
+        0
     );
 
     stageHintLayout->setSpacing(6);
+
 
     stageTitleLabel =
         new QLabel(
@@ -317,8 +469,11 @@ void MainWindow::setupUi()
         stageTitleLabel
     );
 
+
     keysImageLabel =
-        new QLabel(stageHintWidget);
+        new QLabel(
+            stageHintWidget
+        );
 
     keysImageLabel->setAlignment(
         Qt::AlignCenter
@@ -333,12 +488,13 @@ void MainWindow::setupUi()
     stageHintLayout->addWidget(
         keysImageLabel
     );
-    
+
+
     movementLabel =
-    new QLabel(
-        "Движение рамки",
-        stageHintWidget
-    );
+        new QLabel(
+            "Движение рамки",
+            stageHintWidget
+        );
 
     movementLabel->setAlignment(
         Qt::AlignCenter
@@ -348,35 +504,40 @@ void MainWindow::setupUi()
         movementLabel
     );
 
+
     lightStatusWidget =
-        new QWidget(stageHintWidget);
-    
+        new QWidget(
+            stageHintWidget
+        );
+
     lightStatusWidget->hide();
 
+
     QGridLayout* lightGrid =
-        new QGridLayout(lightStatusWidget);
+        new QGridLayout(
+            lightStatusWidget
+        );
 
     lightGrid->setContentsMargins(
-        0, 0, 0, 0
+        0,
+        0,
+        0,
+        0
     );
 
-    lightGrid->setHorizontalSpacing(20);
-    lightGrid->setVerticalSpacing(4);
-
-    levelsImageLabel =
-        new QLabel(lightStatusWidget);
-
-    levelsImageLabel->setAlignment(
-        Qt::AlignCenter
+    lightGrid->setHorizontalSpacing(
+        20
     );
 
-    lightGrid->addWidget(
-        levelsImageLabel,
-        0, 0
+    lightGrid->setVerticalSpacing(
+        4
     );
+
 
     curvesImageLabel =
-        new QLabel(lightStatusWidget);
+        new QLabel(
+            lightStatusWidget
+        );
 
     curvesImageLabel->setAlignment(
         Qt::AlignCenter
@@ -384,8 +545,26 @@ void MainWindow::setupUi()
 
     lightGrid->addWidget(
         curvesImageLabel,
-        0, 1
+        0,
+        0
     );
+
+
+    levelsImageLabel =
+        new QLabel(
+            lightStatusWidget
+        );
+
+    levelsImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+    lightGrid->addWidget(
+        levelsImageLabel,
+        0,
+        1
+    );
+
 
     levelsTextLabel =
         new QLabel(
@@ -399,8 +578,10 @@ void MainWindow::setupUi()
 
     lightGrid->addWidget(
         levelsTextLabel,
-        1, 0
+        1,
+        0
     );
+
 
     curvesTextLabel =
         new QLabel(
@@ -414,31 +595,33 @@ void MainWindow::setupUi()
 
     lightGrid->addWidget(
         curvesTextLabel,
-        1, 1
+        1,
+        1
     );
+
 
     stageHintLayout->addWidget(
         lightStatusWidget
     );
-    
+
+
     mainLayout->addWidget(
-    stageHintWidget
-);
+        stageHintWidget
+    );
 
 
     // =========================================================
     // IMAGE CANVAS
     // =========================================================
 
-    auto* imageContainer =
+    imageContainer =
         new QWidget(this);
 
     auto* imageLayout =
-        new QVBoxLayout(imageContainer);
+        new QVBoxLayout(
+            imageContainer
+        );
 
-    imageContainer->setStyleSheet(
-        "background-color: #808080;"
-    );
 
     imageLayout->setContentsMargins(
         30,
@@ -449,12 +632,91 @@ void MainWindow::setupUi()
 
     imageLayout->setSpacing(0);
 
+
     cropCanvas =
         new CropCanvas(this);
 
     imageLayout->addWidget(
         cropCanvas
     );
+
+
+    // =========================================================
+    // КНОПКА СОХРАНИТЬ
+    // =========================================================
+
+    saveButton =
+        new QPushButton(
+            "Сохранить",
+            imageContainer
+        );
+
+    saveButton->setFixedSize(
+        180,
+        50
+    );
+
+    saveButton->setCursor(
+        Qt::PointingHandCursor
+    );
+
+    saveButton->hide();
+
+
+    imageLayout->addWidget(
+        saveButton,
+        0,
+        Qt::AlignCenter
+    );
+
+
+    connect(
+        saveButton,
+        &QPushButton::clicked,
+        this,
+        &MainWindow::saveAllImages
+    );
+
+
+    // =========================================================
+    // PROGRESS BAR
+    // =========================================================
+
+    saveProgressBar =
+        new QProgressBar(
+            imageContainer
+        );
+
+    saveProgressBar->setFixedWidth(
+        400
+    );
+
+    saveProgressBar->setFixedHeight(
+        20
+    );
+
+    saveProgressBar->setRange(
+        0,
+        100
+    );
+
+    saveProgressBar->setValue(
+        0
+    );
+
+    saveProgressBar->setTextVisible(
+        true
+    );
+
+    saveProgressBar->hide();
+
+
+    imageLayout->addWidget(
+        saveProgressBar,
+        0,
+        Qt::AlignCenter
+    );
+
 
     mainLayout->addWidget(
         imageContainer,
@@ -469,6 +731,7 @@ void MainWindow::setupUi()
     auto* footerLayout =
         new QHBoxLayout();
 
+
     backLabel =
         new QLabel(this);
 
@@ -480,15 +743,15 @@ void MainWindow::setupUi()
 
 
     backLabel->setText(
-        "<a href=\"#\">← Назад</a>"
+        "<a href=\"#\">← Назад (Esc)</a>"
     );
 
     markLabel->setText(
-        "<a href=\"#\">Пометить</a>"
+        "<a href=\"#\">Пометить (Space)</a>"
     );
 
     forwardLabel->setText(
-        "<a href=\"#\">Вперёд →</a>"
+        "<a href=\"#\">Вперёд → (Enter)</a>"
     );
 
 
@@ -517,6 +780,7 @@ void MainWindow::setupUi()
         Qt::PointingHandCursor
     );
 
+
     connect(
         backLabel,
         &QLabel::linkActivated,
@@ -532,25 +796,22 @@ void MainWindow::setupUi()
     );
 
 
-    footerLayout->addStretch();
-
     footerLayout->addWidget(
         backLabel
     );
 
-    footerLayout->addSpacing(35);
+    footerLayout->addStretch();
 
     footerLayout->addWidget(
         markLabel
     );
 
-    footerLayout->addSpacing(35);
+    footerLayout->addStretch();
 
     footerLayout->addWidget(
         forwardLabel
     );
 
-    footerLayout->addStretch();
 
     mainLayout->addLayout(
         footerLayout
@@ -667,15 +928,66 @@ bool MainWindow::isImageFile(const QString& filePath) const
 
 void MainWindow::showCurrentImage()
 {
+    saveButton->hide();
+    saveProgressBar->hide();
+
+    backLabel->show();
+    markLabel->show();
+    forwardLabel->show();
+
     updateStageHint();
-    
+
+    if (currentStage == Stage::Save)
+    {
+        cropCanvas->hide();
+
+        saveButton->show();
+        setFocus();
+
+        saveProgressBar->hide();
+        saveProgressBar->setValue(0);
+
+        backLabel->show();
+        markLabel->hide();
+        forwardLabel->show();
+
+        cropCanvas->setFocus();
+
+        imageContainer->setStyleSheet("");
+
+        photoCounterLabel->setText(
+            "Быстрое кадрирование"
+        );
+
+        setWindowTitle(
+            "Быстрое кадрирование"
+        );
+
+        return;
+    }
+
+    cropCanvas->show();
+    saveButton->hide();
+    saveProgressBar->hide();
+
+    backLabel->show();
+    markLabel->show();
+    forwardLabel->show();
+
+    forwardLabel->setText(
+        "<a href=\"#\">Вперёд → (Enter)</a>"
+    );
+
     if (currentImageIndex < 0 ||
         currentImageIndex >= images.size())
     {
+        imageContainer->setStyleSheet("");
+
+        cropCanvas->show();
         cropCanvas->setImage(QImage());
 
         photoCounterLabel->setText(
-            "Фото 0 из 0"
+            "Быстрое кадрирование"
         );
 
         loadNewPhotosLabel->hide();
@@ -702,6 +1014,12 @@ void MainWindow::showCurrentImage()
 
         return;
     }
+
+    imageContainer->setStyleSheet(
+        "background-color: #808080;"
+    );
+
+    cropCanvas->show();
 
     cropCanvas->setDisplayImage(
         image,
@@ -742,7 +1060,7 @@ void MainWindow::showCurrentImage()
     );
 
     photoCounterLabel->setText(
-        QString("Фото %1 из %2")
+        QString("Быстрое кадрирование %1 из %2")
         .arg(currentImageIndex + 1)
         .arg(images.size())
     );
@@ -750,12 +1068,9 @@ void MainWindow::showCurrentImage()
     loadNewPhotosLabel->show();
 
     setWindowTitle(
-        QString("VoronaCropper — %1")
-        .arg(
-            QFileInfo(
-                item.filePath()
-            ).fileName()
-        )
+        QString("Быстрое кадрирование - фото %1 из %2")
+        .arg(currentImageIndex + 1)
+        .arg(images.size())
     );
 }
 
@@ -763,6 +1078,37 @@ void MainWindow::loadDroppedUrls(const QList<QUrl>& urls)
 {
     QStringList imageFiles;
     QStringList unsupportedFiles;
+
+    // Запоминаем, что именно пользователь перетащил.
+    saveSourceType =
+        SaveSourceType::MultipleFiles;
+
+    sourceDirectory.clear();
+
+    if (urls.size() == 1)
+    {
+        const QString path =
+            urls.first().toLocalFile();
+
+        QFileInfo info(path);
+
+        if (info.isDir())
+        {
+            saveSourceType =
+                SaveSourceType::Directory;
+
+            sourceDirectory =
+                info.absoluteFilePath();
+        }
+        else if (info.isFile())
+        {
+            saveSourceType =
+                SaveSourceType::SingleFile;
+
+            sourceDirectory =
+                info.absolutePath();
+        }
+    }
 
     for (const QUrl& url : urls)
     {
@@ -826,11 +1172,74 @@ void MainWindow::loadDroppedUrls(const QList<QUrl>& urls)
     {
         QMessageBox::information(
             this,
-            "VoronaCropper",
+            "Быстрое кадрирование",
             "Изображения не найдены."
         );
 
         return;
+    }
+
+    if (saveSourceType == SaveSourceType::MultipleFiles &&
+        !imageFiles.isEmpty())
+    {
+        sourceDirectory =
+            QFileInfo(imageFiles.first()).absolutePath();
+    }
+
+    if (urls.size() == 1)
+    {
+        const QString path =
+            urls.first().toLocalFile();
+
+        QFileInfo info(path);
+
+        if (info.isDir())
+        {
+            saveSourceType =
+                SaveSourceType::Directory;
+
+            sourceDirectory =
+                info.absoluteFilePath();
+
+            saveHash.clear();
+        }
+        else
+        {
+            saveSourceType =
+                SaveSourceType::SingleFile;
+
+            sourceDirectory.clear();
+            saveHash.clear();
+        }
+    }
+    else
+    {
+        saveSourceType =
+            SaveSourceType::MultipleFiles;
+
+        sourceDirectory.clear();
+
+        QStringList fileNames;
+
+        for (const QString& filePath : imageFiles)
+        {
+            fileNames.append(
+                QFileInfo(filePath).fileName()
+            );
+        }
+
+        fileNames.sort();
+
+        const QByteArray hashData =
+            fileNames.join("|").toUtf8();
+
+        saveHash =
+            QString::fromLatin1(
+                QCryptographicHash::hash(
+                    hashData,
+                    QCryptographicHash::Sha256
+                ).toHex().left(12)
+            );
     }
 
     loadImageFiles(imageFiles);
@@ -860,16 +1269,32 @@ void MainWindow::resetProject()
 
     currentImageIndex = -1;
 
+    currentStage = Stage::Crop;
+
+    // Возвращаем обычное состояние интерфейса
+    saveButton->hide();
+    saveProgressBar->hide();
+
+    backLabel->show();
+    markLabel->show();
+    forwardLabel->show();
+
+    cropCanvas->show();
     cropCanvas->clearImage();
 
+    // Возвращаем стандартный фон
+    imageContainer->setStyleSheet("");
+
     photoCounterLabel->setText(
-        "Фото 0 из 0"
+        "Быстрое кадрирование"
     );
 
     loadNewPhotosLabel->hide();
 
+    updateStageHint();
+
     setWindowTitle(
-        "VoronaCropper"
+        "Быстрое кадрирование"
     );
 }
 
@@ -889,7 +1314,56 @@ void MainWindow::choosePhotosFromDialog()
     if (files.isEmpty())
         return;
 
-    loadImageFiles(files);
+    QStringList imageFiles;
+
+    for (const QString& filePath : files)
+    {
+        if (isImageFile(filePath))
+            imageFiles.append(filePath);
+    }
+
+    if (imageFiles.isEmpty())
+        return;
+
+    if (imageFiles.size() == 1)
+    {
+        saveSourceType =
+            SaveSourceType::SingleFile;
+
+        sourceDirectory.clear();
+        saveHash.clear();
+    }
+    else
+    {
+        saveSourceType =
+            SaveSourceType::MultipleFiles;
+
+        sourceDirectory.clear();
+
+        QStringList fileNames;
+
+        for (const QString& filePath : imageFiles)
+        {
+            fileNames.append(
+                QFileInfo(filePath).fileName()
+            );
+        }
+
+        fileNames.sort();
+
+        const QByteArray hashData =
+            fileNames.join("|").toUtf8();
+
+        saveHash =
+            QString::fromLatin1(
+                QCryptographicHash::hash(
+                    hashData,
+                    QCryptographicHash::Sha256
+                ).toHex().left(12)
+            );
+    }
+
+    loadImageFiles(imageFiles);
 }
 
 void MainWindow::applyCropSize() const
@@ -1042,9 +1516,162 @@ void MainWindow::goForward()
     if (images.isEmpty())
         return;
 
+    if (currentStage == Stage::Save)
+    {
+        saveAllImages();
+        return;
+    }
+
+    // =========================================================
+    // Кадр → Свет
+    // =========================================================
+
     if (currentStage == Stage::Crop)
     {
         saveCurrentCropState();
+
+        ImageItem& item =
+            images[currentImageIndex];
+
+        // =====================================================
+        // SHIFT+ENTER → FIT MODE
+        // =====================================================
+
+        if (cropCanvas->isFitImageMode())
+        {
+            const QImage fittedImage =
+                cropCanvas->createFitCropImage();
+
+            if (!fittedImage.isNull())
+            {
+                item.setCroppedImage(
+                    fittedImage
+                );
+            }
+        }
+        else
+        {
+            // =================================================
+            // Обычное кадрирование
+            // =================================================
+
+            item.createCroppedImage(
+                item.cropRect()
+            );
+        }
+
+        currentStage =
+            Stage::Light;
+
+        updateStageHint();
+
+        cropCanvas->setDisplayImage(
+            item.croppedImage(),
+            true
+        );
+
+        cropCanvas->setLevelsStatus(
+            item.levelsStatus()
+        );
+
+        // Передаём сохранённое состояние Levels.
+        cropCanvas->setLevelsStatus(
+            item.levelsStatus()
+        );
+
+        return;
+    }
+
+    // =========================================================
+    // Свет → следующая фотография
+    // =========================================================
+
+    if (currentStage == Stage::Light)
+    {
+        ImageItem& item =
+            images[currentImageIndex];
+
+        // =====================================================
+        // Финально применяем свет
+        // к полноразмерному изображению.
+        // =====================================================
+
+        const QImage finalImage =
+            cropCanvas->createFinalLightImage();
+
+        if (!finalImage.isNull())
+        {
+            item.setCroppedImage(
+                finalImage
+            );
+        }
+
+        // Последняя фотография.
+        if (currentImageIndex >= images.size() - 1)
+        {
+            currentStage = Stage::Save;
+            updateStageHint();
+            showCurrentImage();
+            return;
+        }
+
+        ++currentImageIndex;
+
+        currentStage =
+            Stage::Crop;
+
+        updateStageHint();
+
+        showCurrentImage();
+
+        return;
+    }
+}
+
+void MainWindow::goBack()
+{
+    if (images.isEmpty())
+        return;
+
+    if (currentStage == Stage::Save)
+    {
+        currentStage = Stage::Light;
+
+        currentImageIndex = images.size() - 1;
+
+        showCurrentImage();
+
+        return;
+    }
+
+    // =========================================================
+    // Свет → Кадр этой же фотографии
+    // =========================================================
+
+    if (currentStage == Stage::Light)
+    {
+        currentStage =
+            Stage::Crop;
+
+        updateStageHint();
+
+        showCurrentImage();
+
+        return;
+    }
+
+    // =========================================================
+    // Кадр → Свет предыдущей фотографии
+    // =========================================================
+
+    if (currentStage == Stage::Crop)
+    {
+        if (currentImageIndex <= 0)
+            return;
+
+        saveCurrentCropState();
+
+        --currentImageIndex;
 
         ImageItem& item =
             images[currentImageIndex];
@@ -1053,121 +1680,28 @@ void MainWindow::goForward()
             item.cropRect()
         );
 
-        currentStage = Stage::Light;
-        
+        currentStage =
+            Stage::Light;
+
         updateStageHint();
 
         cropCanvas->setDisplayImage(
             item.croppedImage(),
             true
         );
-        
+
+        cropCanvas->setLevelsStatus(
+            item.levelsStatus()
+        );
+
+        cropCanvas->setCurvesStatus(
+            item.curvesStatus()
+        );
+
+        updateLightStatusWidgets();
 
         return;
     }
-
-    // Stage::Light
-    if (currentImageIndex >= images.size() - 1)
-        return;
-
-    ++currentImageIndex;
-
-    currentStage = Stage::Crop;
-    
-    updateStageHint();
-
-    showCurrentImage();
-}
-
-void MainWindow::goBack()
-{
-    if (images.isEmpty())
-        return;
-
-    // Свет → Кадр
-    if (currentStage == Stage::Light)
-    {
-        currentStage = Stage::Crop;
-
-        ImageItem& item =
-            images[currentImageIndex];
-
-        widthEdit->setText(
-            QString::number(
-                item.cropWidthCm(),
-                'g',
-                10
-            )
-        );
-
-        heightEdit->setText(
-            QString::number(
-                item.cropHeightCm(),
-                'g',
-                10
-            )
-        );
-
-        cropCanvas->setDisplayImage(
-            item.originalImage(),
-            false
-        );
-
-        cropCanvas->setCropRatio(
-            item.cropWidthCm(),
-            item.cropHeightCm()
-        );
-
-        const QRectF savedCropRect =
-            item.cropRect();
-
-        cropCanvas->setCropPixelSize(
-            savedCropRect.width(),
-            savedCropRect.height()
-        );
-
-        cropCanvas->setCropCenter(
-            item.cropCenterX(),
-            item.cropCenterY()
-        );
-
-        updateStageHint();
-
-        return;
-    }
-
-    // Кадр → предыдущая фотография → Свет
-    if (currentImageIndex <= 0)
-        return;
-
-    // Сохраняем состояние текущей фотографии.
-    saveCurrentCropState();
-
-    --currentImageIndex;
-
-    ImageItem& item =
-        images[currentImageIndex];
-
-    // Создаём результат кадрирования
-    // именно по состоянию этой фотографии.
-    item.createCroppedImage(
-        item.cropRect()
-    );
-
-    currentStage = Stage::Light;
-
-    cropCanvas->setDisplayImage(
-        item.croppedImage(),
-        true
-    );
-
-    photoCounterLabel->setText(
-        QString("Фото %1 из %2")
-        .arg(currentImageIndex + 1)
-        .arg(images.size())
-    );
-
-    updateStageHint();
 }
 
 void CropCanvas::mouseReleaseEvent(
@@ -1250,11 +1784,11 @@ void MainWindow::updateLightStatusWidgets()
             item.curvesStatus()
         );
 
-    levelsImageLabel->setPixmap(
+    curvesImageLabel->setPixmap(
         levelsPixmaps[levelsIndex]
     );
 
-    curvesImageLabel->setPixmap(
+    levelsImageLabel->setPixmap(
         curvesPixmaps[curvesIndex]
     );
 }
@@ -1270,8 +1804,11 @@ void MainWindow::updateStageHint()
         keysImageLabel->show();
         movementLabel->show();
         lightStatusWidget->hide();
+
+        return;
     }
-    else
+
+    if (currentStage == Stage::Light)
     {
         stageTitleLabel->setText(
             "Настройка света"
@@ -1282,5 +1819,581 @@ void MainWindow::updateStageHint()
         lightStatusWidget->show();
 
         updateLightStatusWidgets();
+
+        return;
     }
+
+    // Save
+    stageTitleLabel->setText(
+        "Обработка завершена"
+    );
+
+    keysImageLabel->hide();
+    movementLabel->hide();
+    lightStatusWidget->hide();
+}
+
+void MainWindow::handleLightKey(QKeyEvent* event)
+{
+    if (currentStage != Stage::Light)
+        return;
+
+    if (currentImageIndex < 0 ||
+        currentImageIndex >= images.size())
+    {
+        return;
+    }
+
+    ImageItem& item =
+        images[currentImageIndex];
+
+    switch (event->key())
+    {
+    case Qt::Key_Left:
+
+        item.setLevelsStatus(
+            item.levelsStatus() - 1
+        );
+
+        cropCanvas->setLevelsStatus(
+            item.levelsStatus()
+        );
+
+        updateLightStatusWidgets();
+        event->accept();
+        return;
+
+    case Qt::Key_Right:
+
+        item.setLevelsStatus(
+            item.levelsStatus() + 1
+        );
+
+        cropCanvas->setLevelsStatus(
+            item.levelsStatus()
+        );
+
+        updateLightStatusWidgets();
+        event->accept();
+        return;
+
+    case Qt::Key_Up:
+
+        item.setCurvesStatus(
+            item.curvesStatus() + 1
+        );
+
+        cropCanvas->setCurvesStatus(
+            item.curvesStatus()
+        );
+
+        updateLightStatusWidgets();
+        event->accept();
+        return;
+
+    case Qt::Key_Down:
+
+        item.setCurvesStatus(
+            item.curvesStatus() - 1
+        );
+
+        cropCanvas->setCurvesStatus(
+            item.curvesStatus()
+        );
+
+        updateLightStatusWidgets();
+        event->accept();
+        return;
+    default:
+        return;
+    }
+}
+
+void MainWindow::saveAllImages()
+{
+    if (images.isEmpty())
+        return;
+
+    // Есть ли хотя бы одна фотография,
+    // которую действительно нужно сохранить.
+    bool hasImagesToSave = false;
+
+    for (const ImageItem& item : images)
+    {
+        if (!item.isMarked())
+        {
+            hasImagesToSave = true;
+            break;
+        }
+    }
+
+    if (!hasImagesToSave)
+    {
+        QMessageBox::information(
+            this,
+            "Сохранение",
+            "Фотографий для сохранения нет."
+        );
+
+        qApp->quit();
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // Определяем корневую папку сохранения
+    // ---------------------------------------------------------
+
+    if (saveSourceType != SaveSourceType::SingleFile)
+    {
+        saveDirectoryPath =
+            makeUniquePath(
+                getSaveDirectory()
+            );
+
+        if (!QDir().mkpath(saveDirectoryPath))
+        {
+            QMessageBox::critical(
+                this,
+                "Ошибка сохранения",
+                "Не удалось создать папку:\n"
+                + saveDirectoryPath
+            );
+
+            return;
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Создаём папку Помеченные
+    // ---------------------------------------------------------
+
+    QString markedDirectory;
+
+    bool hasMarkedImages = false;
+
+    for (const ImageItem& item : images)
+    {
+        if (item.isMarked())
+        {
+            hasMarkedImages = true;
+            break;
+        }
+    }
+
+    if (hasMarkedImages)
+    {
+        markedDirectory =
+            saveDirectoryPath + "/Помеченные";
+
+        if (!QDir().mkpath(markedDirectory))
+        {
+            QMessageBox::critical(
+                this,
+                "Ошибка сохранения",
+                "Не удалось создать папку:\n"
+                + markedDirectory
+            );
+
+            return;
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Проверяем обработанные фотографии
+    // ---------------------------------------------------------
+
+    for (const ImageItem& item : images)
+    {
+        if (!item.isMarked() &&
+            item.croppedImage().isNull())
+        {
+            QMessageBox::warning(
+                this,
+                "Ошибка",
+                "Не все фотографии обработаны."
+            );
+
+            return;
+        }
+    }
+
+    // ---------------------------------------------------------
+    // ProgressBar
+    // ---------------------------------------------------------
+
+    saveButton->hide();
+
+    saveProgressBar->show();
+    saveProgressBar->setValue(0);
+
+    QApplication::processEvents();
+
+    const int filesToSave =
+        images.size();
+
+    int filesSaved = 0;
+
+    // ---------------------------------------------------------
+    // Сохранение
+    // ---------------------------------------------------------
+
+    for (const ImageItem& item : images)
+    {
+        // -----------------------------------------------------
+        // Помеченная фотография
+        // -----------------------------------------------------
+
+        if (item.isMarked())
+        {
+            const QString fileName =
+                QFileInfo(
+                    item.filePath()
+                ).fileName();
+
+            const QString markedPath =
+                markedDirectory
+                + "/"
+                + fileName;
+
+            const QString uniqueMarkedPath =
+                makeUniquePath(markedPath);
+
+            if (!item.originalImage().save(
+                uniqueMarkedPath))
+            {
+                QMessageBox::critical(
+                    this,
+                    "Ошибка сохранения",
+                    "Не удалось сохранить:\n"
+                    + item.filePath()
+                );
+
+                return;
+            }
+        }
+
+        // -----------------------------------------------------
+        // Обычная фотография
+        // -----------------------------------------------------
+
+        else
+        {
+            if (!saveImage(item))
+            {
+                QMessageBox::critical(
+                    this,
+                    "Ошибка сохранения",
+                    "Не удалось сохранить:\n"
+                    + item.filePath()
+                );
+
+                return;
+            }
+        }
+
+        ++filesSaved;
+
+        saveProgressBar->setValue(
+            filesSaved * 100 / filesToSave
+        );
+
+        QApplication::processEvents();
+    }
+
+    // ---------------------------------------------------------
+    // Сообщение об успешном сохранении
+    // ---------------------------------------------------------
+
+    QMessageBox messageBox(
+        QMessageBox::Information,
+        "Сохранение завершено",
+        "Фотографии успешно сохранены.",
+        QMessageBox::Ok,
+        this
+    );
+
+    messageBox.setButtonText(
+        QMessageBox::Ok,
+        "ОК"
+    );
+
+    messageBox.exec();
+
+    // ---------------------------------------------------------
+    // Открываем папку
+    // ---------------------------------------------------------
+
+    if (saveSourceType == SaveSourceType::MultipleFiles ||
+        saveSourceType == SaveSourceType::Directory)
+    {
+        QDesktopServices::openUrl(
+            QUrl::fromLocalFile(
+                saveDirectoryPath
+            )
+        );
+    }
+
+    // ---------------------------------------------------------
+    // Показываем рабочий стол
+    // ---------------------------------------------------------
+
+    showDesktop();
+
+    // ---------------------------------------------------------
+    // Закрываем приложение
+    // ---------------------------------------------------------
+
+    qApp->quit();
+}
+
+QString MainWindow::getSaveDirectory() const
+{
+    const QString desktop =
+        getDesktopPath();
+
+    if (saveSourceType == SaveSourceType::Directory)
+    {
+        QFileInfo sourceInfo(sourceDirectory);
+
+        return desktop
+            + "/КАДР_"
+            + sourceInfo.fileName();
+    }
+
+    if (saveSourceType == SaveSourceType::MultipleFiles)
+    {
+        return desktop
+            + "/КАДР_ФОТОКИ_"
+            + saveHash;
+    }
+
+    return QString();
+}
+
+QString MainWindow::getSaveFilePath(
+    const ImageItem& item
+) const
+{
+    const QString originalPath =
+        item.filePath();
+
+    QFileInfo originalInfo(originalPath);
+
+    // Один файл
+    if (saveSourceType == SaveSourceType::SingleFile)
+    {
+        return makeUniquePath(
+            getDesktopPath()
+            + "/КАДР_"
+            + originalInfo.fileName()
+        );
+    }
+
+    // Несколько отдельных файлов
+    if (saveSourceType == SaveSourceType::MultipleFiles)
+    {
+        return saveDirectoryPath
+            + "/"
+            + originalInfo.fileName();
+    }
+
+    // Папка
+    QFileInfo sourceInfo(sourceDirectory);
+
+    QDir sourceDir(
+        sourceInfo.absoluteFilePath()
+    );
+
+    const QString relativePath =
+        sourceDir.relativeFilePath(
+            originalInfo.absoluteFilePath()
+        );
+
+    const QStringList parts =
+        relativePath.split(
+            QDir::separator(),
+            Qt::SkipEmptyParts
+        );
+
+    QString result =
+        saveDirectoryPath;
+
+    // Все элементы кроме последнего —
+    // это внутренние папки.
+    for (int i = 0; i < parts.size() - 1; ++i)
+    {
+        result += "/КАДР_" + parts[i];
+    }
+
+    // Последний элемент — имя фотографии.
+    if (!parts.isEmpty())
+        result += "/" + parts.last();
+
+    return result;
+}
+
+bool MainWindow::saveImage(const ImageItem& item)
+{
+    const QString savePath =
+        getSaveFilePath(item);
+
+    QFileInfo fileInfo(savePath);
+
+    // Создаём необходимые вложенные папки.
+    QDir saveDir;
+
+    if (!saveDir.mkpath(fileInfo.absolutePath()))
+        return false;
+
+    // Сохраняем именно готовое изображение.
+    return item.croppedImage().save(
+        savePath
+    );
+}
+
+QString MainWindow::getDesktopPath() const
+{
+    return QStandardPaths::writableLocation(
+        QStandardPaths::DesktopLocation
+    );
+}
+
+QString MainWindow::makeUniquePath(const QString& path) const
+{
+    if (!QFileInfo::exists(path))
+        return path;
+
+    QFileInfo info(path);
+
+    const QString directory =
+        info.absolutePath();
+
+    const QString baseName =
+        info.completeBaseName();
+
+    const QString suffix =
+        info.suffix();
+
+    int number = 2;
+
+    while (true)
+    {
+        QString newName =
+            baseName
+            + " ("
+            + QString::number(number)
+            + ")";
+
+        if (!suffix.isEmpty())
+            newName += "." + suffix;
+
+        const QString newPath =
+            QDir(directory).filePath(newName);
+
+        if (!QFileInfo::exists(newPath))
+            return newPath;
+
+        ++number;
+    }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event)
+{
+    if (currentStage == Stage::Save &&
+        (event->key() == Qt::Key_Return ||
+            event->key() == Qt::Key_Enter))
+    {
+        saveAllImages();
+        return;
+    }
+
+    if ((currentStage == Stage::Crop ||
+            currentStage == Stage::Light ||
+            currentStage == Stage::Save) &&
+        (event->key() == Qt::Key_Escape ||
+            event->key() == Qt::Key_Backspace))
+    {
+        goBack();
+        return;
+    }
+
+    if ((currentStage == Stage::Crop ||
+            currentStage == Stage::Light) &&
+        event->key() == Qt::Key_Space)
+    {
+        markCurrentPhoto();
+        return;
+    }
+
+    QMainWindow::keyPressEvent(event);
+}
+
+void MainWindow::showDesktop()
+{
+    IShellDispatch* shell = nullptr;
+
+    HRESULT result =
+        CoCreateInstance(
+            CLSID_Shell,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_IShellDispatch,
+            reinterpret_cast<void**>(&shell)
+        );
+
+    if (SUCCEEDED(result))
+    {
+        shell->MinimizeAll();
+        shell->Release();
+    }
+}
+
+void MainWindow::markCurrentPhoto()
+{
+    if (currentStage != Stage::Crop &&
+        currentStage != Stage::Light)
+    {
+        return;
+    }
+
+    if (currentImageIndex < 0 ||
+        currentImageIndex >= images.size())
+    {
+        return;
+    }
+
+    const QMessageBox::StandardButton result =
+        QMessageBox::question(
+            this,
+            "Пометить фотографию",
+            "Фотография будет пропущена и сохранится "
+            "в папку \"Помеченные\" для дальнейшей обработки, "
+            "например в Photoshop.\n\n"
+            "Вы уверены, что хотите пропустить "
+            "и пометить фотографию?",
+            QMessageBox::Ok | QMessageBox::Cancel,
+            QMessageBox::Cancel
+        );
+
+    if (result != QMessageBox::Ok)
+        return;
+
+    images[currentImageIndex].setMarked(true);
+
+    // Переходим сразу к следующей фотографии.
+    if (currentImageIndex < images.size() - 1)
+    {
+        ++currentImageIndex;
+
+        currentStage = Stage::Crop;
+
+        showCurrentImage();
+
+        return;
+    }
+
+    // Последняя фотография была помечена.
+    currentStage = Stage::Save;
+
+    showCurrentImage();
 }
