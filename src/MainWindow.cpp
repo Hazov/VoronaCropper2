@@ -455,11 +455,7 @@ void MainWindow::setupUi()
     stageHintLayout->setSpacing(6);
 
 
-    stageTitleLabel =
-        new QLabel(
-            "Настройка рамки",
-            stageHintWidget
-        );
+    stageTitleLabel = new QLabel();
 
     stageTitleLabel->setAlignment(
         Qt::AlignCenter
@@ -492,7 +488,7 @@ void MainWindow::setupUi()
 
     movementLabel =
         new QLabel(
-            "Движение рамки",
+            "Движение рамки / поле Epson",
             stageHintWidget
         );
 
@@ -503,6 +499,9 @@ void MainWindow::setupUi()
     stageHintLayout->addWidget(
         movementLabel
     );
+
+    keysImageLabel->hide();
+    movementLabel->hide();
 
 
     lightStatusWidget =
@@ -743,7 +742,7 @@ void MainWindow::setupUi()
 
 
     backLabel->setText(
-        "<a href=\"#\">← Назад (Esc)</a>"
+        "<a href=\"#\">← Назад (Esc / Beckspace)</a>"
     );
 
     markLabel->setText(
@@ -911,8 +910,8 @@ bool MainWindow::isImageFile(const QString& filePath) const
 {
     const QString suffix =
         QFileInfo(filePath)
-            .suffix()
-            .toLower();
+        .suffix()
+        .toLower();
 
     // Форматы, которые умеет Qt
     const QList<QByteArray> supportedFormats =
@@ -1282,6 +1281,9 @@ void MainWindow::resetProject()
     // Возвращаем обычное состояние интерфейса
     saveButton->hide();
     saveProgressBar->hide();
+
+    keysImageLabel->hide();
+    movementLabel->hide();
 
     backLabel->show();
     markLabel->show();
@@ -1805,12 +1807,19 @@ void MainWindow::updateStageHint()
 {
     if (currentStage == Stage::Crop)
     {
-        stageTitleLabel->setText(
-            "Настройка рамки"
-        );
+        if (!images.isEmpty())
+        {
+            keysImageLabel->show();
+            movementLabel->show();
+            stageTitleLabel->setText("Настройка рамки");
+        }
+        else
+        {
+            stageTitleLabel->setText(
+                ""
+            );
+        }
 
-        keysImageLabel->show();
-        movementLabel->show();
         lightStatusWidget->hide();
 
         return;
@@ -2004,6 +2013,8 @@ void MainWindow::saveAllImages()
 
             return;
         }
+
+        setFolderIcon(markedDirectory);
     }
 
     // ---------------------------------------------------------
@@ -2171,7 +2182,7 @@ QString MainWindow::getSaveDirectory() const
     if (saveSourceType == SaveSourceType::MultipleFiles)
     {
         return desktop
-            + "/КАДР_ФОТОКИ_"
+            + "/КАДР_ФОТКИ_"
             + saveHash;
     }
 
@@ -2182,60 +2193,104 @@ QString MainWindow::getSaveFilePath(
     const ImageItem& item
 ) const
 {
-    const QString originalPath =
-        item.filePath();
+    QFileInfo originalInfo(
+        item.filePath()
+    );
 
-    QFileInfo originalInfo(originalPath);
 
+    QString extension = "jpg";
+
+    if (item.croppedImage().hasAlphaChannel())
+        extension = "png";
+
+
+    // =========================================================
     // Один файл
+    // =========================================================
+
     if (saveSourceType == SaveSourceType::SingleFile)
     {
         return makeUniquePath(
             getDesktopPath()
             + "/КАДР_"
-            + originalInfo.fileName()
+            + originalInfo.completeBaseName()
+            + "."
+            + extension
         );
     }
 
-    // Несколько отдельных файлов
+
+    // =========================================================
+    // Несколько файлов
+    // =========================================================
+
     if (saveSourceType == SaveSourceType::MultipleFiles)
     {
         return saveDirectoryPath
             + "/"
-            + originalInfo.fileName();
+            + originalInfo.completeBaseName()
+            + "."
+            + extension;
     }
 
-    // Папка
-    QFileInfo sourceInfo(sourceDirectory);
+
+    // =========================================================
+    // Папка с подпапками
+    // =========================================================
+
+    QFileInfo sourceInfo(
+        sourceDirectory
+    );
+
 
     QDir sourceDir(
         sourceInfo.absoluteFilePath()
     );
+
 
     const QString relativePath =
         sourceDir.relativeFilePath(
             originalInfo.absoluteFilePath()
         );
 
+
     const QStringList parts =
         relativePath.split(
-            QDir::separator(),
+            QRegularExpression("[/\\\\]"),
             Qt::SkipEmptyParts
         );
+
 
     QString result =
         saveDirectoryPath;
 
+
     // Все элементы кроме последнего —
-    // это внутренние папки.
+    // внутренние папки
     for (int i = 0; i < parts.size() - 1; ++i)
     {
-        result += "/КАДР_" + parts[i];
+        result +=
+            "/КАДР_"
+            + parts[i];
     }
 
-    // Последний элемент — имя фотографии.
+
+    // Последний элемент — фотография.
+    // Меняем только расширение.
     if (!parts.isEmpty())
-        result += "/" + parts.last();
+    {
+        QFileInfo fileInfo(
+            parts.last()
+        );
+
+
+        result +=
+            "/"
+            + fileInfo.completeBaseName()
+            + "."
+            + extension;
+    }
+
 
     return result;
 }
@@ -2245,17 +2300,62 @@ bool MainWindow::saveImage(const ImageItem& item)
     const QString savePath =
         getSaveFilePath(item);
 
+
     QFileInfo fileInfo(savePath);
 
-    // Создаём необходимые вложенные папки.
+
     QDir saveDir;
 
-    if (!saveDir.mkpath(fileInfo.absolutePath()))
+    if (!saveDir.mkpath(
+        fileInfo.absolutePath()))
+    {
+        qDebug()
+            << "Cannot create:"
+            << fileInfo.absolutePath();
+
+        return false;
+    }
+
+    setFolderIcon(
+        fileInfo.absolutePath()
+    );
+
+
+    QImage image =
+        item.croppedImage();
+
+
+    if (image.isNull())
         return false;
 
-    // Сохраняем именно готовое изображение.
-    return item.croppedImage().save(
-        savePath
+
+    QString format =
+        fileInfo.suffix()
+                .toLower();
+
+
+    if (format == "jpg")
+    {
+        image =
+            image.convertToFormat(
+                QImage::Format_RGB32
+            );
+    }
+    else if (format == "png")
+    {
+        image =
+            image.convertToFormat(
+                QImage::Format_ARGB32
+            );
+    }
+
+
+    return image.save(
+        savePath,
+        format.toUpper()
+              .toUtf8()
+              .constData(),
+        95
     );
 }
 
@@ -2404,4 +2504,51 @@ void MainWindow::markCurrentPhoto()
     currentStage = Stage::Save;
 
     showCurrentImage();
+}
+
+void MainWindow::setFolderIcon(const QString& folderPath)
+{
+    QString desktopIniPath =
+        QDir(folderPath).filePath("desktop.ini");
+
+
+    QString exePath =
+        QCoreApplication::applicationFilePath();
+
+
+    QFile file(desktopIniPath);
+
+    if (file.open(QIODevice::WriteOnly |
+        QIODevice::Text))
+    {
+        QTextStream out(&file);
+
+        out << "[.ShellClassInfo]\n";
+        out << "IconResource="
+            << QDir::toNativeSeparators(exePath)
+            << ",0\n";
+
+        file.close();
+    }
+
+
+    SetFileAttributesW(
+        reinterpret_cast<LPCWSTR>(
+            QDir::toNativeSeparators(
+                desktopIniPath
+            ).utf16()
+        ),
+        FILE_ATTRIBUTE_HIDDEN |
+        FILE_ATTRIBUTE_SYSTEM
+    );
+
+
+    SetFileAttributesW(
+        reinterpret_cast<LPCWSTR>(
+            QDir::toNativeSeparators(
+                folderPath
+            ).utf16()
+        ),
+        FILE_ATTRIBUTE_SYSTEM
+    );
 }

@@ -159,4 +159,6 @@ private:
     
     QProgressBar *saveProgressBar;
     
+    void setFolderIcon(const QString& folderPath);
+    
 };

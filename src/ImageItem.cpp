@@ -66,14 +66,6 @@ QImage ImageItem::loadHeicImage(
 {
     heif_context* context =
         heif_context_alloc();
-    
-    const int count =
-    heif_context_get_number_of_top_level_images(
-        context
-    );
-
-    qDebug() << "Количество изображений HEIC:"
-             << count;
 
     if (!context)
     {
@@ -83,15 +75,35 @@ QImage ImageItem::loadHeicImage(
         return QImage();
     }
 
-    const QByteArray path =
-        QFile::encodeName(filePath);
+
+    QFile file(filePath);
+
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        qDebug()
+            << "HEIC: не удалось открыть файл:"
+            << filePath;
+
+        heif_context_free(context);
+
+        return QImage();
+    }
+
+
+    QByteArray fileData =
+        file.readAll();
+
+    file.close();
+
 
     heif_error error =
-        heif_context_read_from_file(
+        heif_context_read_from_memory_without_copy(
             context,
-            path.constData(),
+            fileData.constData(),
+            fileData.size(),
             nullptr
         );
+
 
     if (error.code != heif_error_Ok)
     {
@@ -104,7 +116,19 @@ QImage ImageItem::loadHeicImage(
         return QImage();
     }
 
+
+    const int count =
+        heif_context_get_number_of_top_level_images(
+            context
+        );
+
+    qDebug()
+        << "Количество изображений HEIC:"
+        << count;
+
+
     heif_image_handle* handle = nullptr;
+
 
     error =
         heif_context_get_primary_image_handle(
@@ -112,11 +136,11 @@ QImage ImageItem::loadHeicImage(
             &handle
         );
 
+
     if (error.code != heif_error_Ok)
     {
         qDebug()
-            << "HEIC: не удалось получить"
-               " primary image:"
+            << "HEIC: не удалось получить primary image:"
             << error.message;
 
         heif_context_free(context);
@@ -124,13 +148,16 @@ QImage ImageItem::loadHeicImage(
         return QImage();
     }
 
+
     const int width =
         heif_image_handle_get_width(handle);
 
     const int height =
         heif_image_handle_get_height(handle);
 
+
     heif_image* image = nullptr;
+
 
     error =
         heif_decode_image(
@@ -140,6 +167,7 @@ QImage ImageItem::loadHeicImage(
             heif_chroma_interleaved_RGBA,
             nullptr
         );
+
 
     if (error.code != heif_error_Ok)
     {
@@ -153,7 +181,9 @@ QImage ImageItem::loadHeicImage(
         return QImage();
     }
 
+
     int stride = 0;
+
 
     const uint8_t* data =
         heif_image_get_plane_readonly(
@@ -162,11 +192,11 @@ QImage ImageItem::loadHeicImage(
             &stride
         );
 
+
     if (!data)
     {
         qDebug()
-            << "HEIC: не удалось получить"
-               " данные изображения";
+            << "HEIC: не удалось получить данные изображения";
 
         heif_image_release(image);
         heif_image_handle_release(handle);
@@ -175,11 +205,13 @@ QImage ImageItem::loadHeicImage(
         return QImage();
     }
 
+
     QImage result(
         width,
         height,
         QImage::Format_RGBA8888
     );
+
 
     for (int y = 0; y < height; ++y)
     {
@@ -190,9 +222,11 @@ QImage ImageItem::loadHeicImage(
         );
     }
 
+
     heif_image_release(image);
     heif_image_handle_release(handle);
     heif_context_free(context);
+
 
     return result;
 }

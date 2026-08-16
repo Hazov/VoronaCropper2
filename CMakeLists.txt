@@ -11,7 +11,14 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 qt_standard_project_setup()
 
+qt_add_resources(VORONA_RESOURCES
+        resources.qrc
+)
+
 qt_add_executable(VoronaCropper
+        app.rc
+        ${VORONA_RESOURCES}
+
         src/main.cpp
         src/MainWindow.cpp
         src/MainWindow.h

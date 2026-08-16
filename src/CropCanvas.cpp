@@ -3061,19 +3061,20 @@ CropCanvas::createLevelsLut(int status) const
     switch (status)
     {
     case -3:
-        gamma = 0.85;
+        gamma = 1.3;
         break;
 
     case -2:
-        gamma = 0.90;
+        gamma = 1.2;
         break;
 
     case -1:
-        gamma = 0.95;
+        gamma = 1.1;
         break;
 
     case 0:
         gamma = 1.00;
+        whitePoint = 255;
         break;
 
     case 1:
