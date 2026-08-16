@@ -27,8 +27,24 @@ qt_add_executable(VoronaCropper
         src/CropCanvas.h
 )
 
+target_include_directories(VoronaCropper PRIVATE
+        "C:/libs/libheif/libheif/api"
+        "C:/libs/libheif-build/include"
+)
+
+target_link_directories(VoronaCropper PRIVATE
+        "C:/libs/libheif-build/libheif"
+)
+
 target_link_libraries(VoronaCropper PRIVATE
         Qt6::Widgets
+        heif
+)
+
+add_custom_command(TARGET VoronaCropper POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "C:/libs/libheif-build/libheif/libheif.dll"
+        "$<TARGET_FILE_DIR:VoronaCropper>"
 )
 
 file(COPY

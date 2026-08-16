@@ -909,13 +909,14 @@ void MainWindow::loadImageFiles(const QStringList& files)
 
 bool MainWindow::isImageFile(const QString& filePath) const
 {
-    const QList<QByteArray> supportedFormats =
-        QImageReader::supportedImageFormats();
-
     const QString suffix =
         QFileInfo(filePath)
-        .suffix()
-        .toLower();
+            .suffix()
+            .toLower();
+
+    // Форматы, которые умеет Qt
+    const QList<QByteArray> supportedFormats =
+        QImageReader::supportedImageFormats();
 
     for (const QByteArray& format : supportedFormats)
     {
@@ -923,7 +924,14 @@ bool MainWindow::isImageFile(const QString& filePath) const
             return true;
     }
 
-    return false;
+    // Форматы, которые мы читаем сами
+    static const QStringList customFormats =
+    {
+        "heic",
+        "heif"
+    };
+
+    return customFormats.contains(suffix);
 }
 
 void MainWindow::showCurrentImage()

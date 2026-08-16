@@ -61,7 +61,7 @@ public:
         const QRectF& cropRect,
         bool withMargins
     );
-    
+
     bool isMarked() const;
     void setMarked(bool marked);
 
@@ -87,4 +87,12 @@ private:
     static constexpr int MAX_LIGHT_STATUS = 3;
 
     bool m_marked = false;
+
+    QImage loadImage(
+        const QString& filePath
+    ) const;
+
+    QImage loadHeicImage(
+        const QString& filePath
+    ) const;
 };

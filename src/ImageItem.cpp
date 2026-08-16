@@ -1,12 +1,21 @@
 ﻿#include "ImageItem.h"
+
 #include <QPainter>
 #include <QDebug>
+#include <QFileInfo>
+
 #include <algorithm>
+#include <cstring>
+
+#include <libheif/heif.h>
+
 
 ImageItem::ImageItem(const QString &filePath)
-    : m_filePath(filePath),
-      m_originalImage(filePath)
+    : m_filePath(filePath)
 {
+    m_originalImage =
+        loadImage(filePath);
+
     if (!m_originalImage.isNull())
     {
         m_cropCenterX =
@@ -22,6 +31,170 @@ ImageItem::ImageItem(const QString &filePath)
             m_cropHeightCm = 10.0;
         }
     }
+}
+
+QImage ImageItem::loadImage(
+    const QString& filePath
+) const
+{
+    const QString suffix =
+        QFileInfo(filePath)
+            .suffix()
+            .toLower();
+
+    qDebug() << "FILE:"
+             << filePath;
+
+    qDebug() << "SUFFIX:"
+             << suffix;
+
+
+    if (suffix == "heic" ||
+        suffix == "heif")
+    {
+        qDebug() << "HEIC branch";
+
+        return loadHeicImage(filePath);
+    }
+
+    return QImage(filePath);
+}
+
+QImage ImageItem::loadHeicImage(
+    const QString& filePath
+) const
+{
+    heif_context* context =
+        heif_context_alloc();
+    
+    const int count =
+    heif_context_get_number_of_top_level_images(
+        context
+    );
+
+    qDebug() << "Количество изображений HEIC:"
+             << count;
+
+    if (!context)
+    {
+        qDebug()
+            << "HEIC: не удалось создать heif_context";
+
+        return QImage();
+    }
+
+    const QByteArray path =
+        QFile::encodeName(filePath);
+
+    heif_error error =
+        heif_context_read_from_file(
+            context,
+            path.constData(),
+            nullptr
+        );
+
+    if (error.code != heif_error_Ok)
+    {
+        qDebug()
+            << "HEIC: ошибка чтения:"
+            << error.message;
+
+        heif_context_free(context);
+
+        return QImage();
+    }
+
+    heif_image_handle* handle = nullptr;
+
+    error =
+        heif_context_get_primary_image_handle(
+            context,
+            &handle
+        );
+
+    if (error.code != heif_error_Ok)
+    {
+        qDebug()
+            << "HEIC: не удалось получить"
+               " primary image:"
+            << error.message;
+
+        heif_context_free(context);
+
+        return QImage();
+    }
+
+    const int width =
+        heif_image_handle_get_width(handle);
+
+    const int height =
+        heif_image_handle_get_height(handle);
+
+    heif_image* image = nullptr;
+
+    error =
+        heif_decode_image(
+            handle,
+            &image,
+            heif_colorspace_RGB,
+            heif_chroma_interleaved_RGBA,
+            nullptr
+        );
+
+    if (error.code != heif_error_Ok)
+    {
+        qDebug()
+            << "HEIC: ошибка декодирования:"
+            << error.message;
+
+        heif_image_handle_release(handle);
+        heif_context_free(context);
+
+        return QImage();
+    }
+
+    int stride = 0;
+
+    const uint8_t* data =
+        heif_image_get_plane_readonly(
+            image,
+            heif_channel_interleaved,
+            &stride
+        );
+
+    if (!data)
+    {
+        qDebug()
+            << "HEIC: не удалось получить"
+               " данные изображения";
+
+        heif_image_release(image);
+        heif_image_handle_release(handle);
+        heif_context_free(context);
+
+        return QImage();
+    }
+
+    QImage result(
+        width,
+        height,
+        QImage::Format_RGBA8888
+    );
+
+    for (int y = 0; y < height; ++y)
+    {
+        std::memcpy(
+            result.scanLine(y),
+            data + y * stride,
+            width * 4
+        );
+    }
+
+    heif_image_release(image);
+    heif_image_handle_release(handle);
+    heif_context_free(context);
+
+    return result;
 }
 
 bool ImageItem::isValid() const
