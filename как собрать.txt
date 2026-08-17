@@ -1,0 +1,8 @@
+Создать папку Release.
+Взять из релиза exe, libheif.dll и light папку.
+
+cd C:\Users\nikolay\RiderProjects\VoronaCropper\Release
+C:\Qt\6.11.1\mingw_64\bin\windeployqt.exe VoronaCropper.exe
+
+Добавить в release
+VoronaCropper.iss и logo.ico

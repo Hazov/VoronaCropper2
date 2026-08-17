@@ -66,6 +66,8 @@ public:
     
     QImage createFinalLightImage() const;
     QImage applyCurves(const QImage& image, int status) const;
+    
+    bool isDefaultCrop() const;
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -142,7 +144,7 @@ private:
     double m_cropPixelWidth;
     double m_cropPixelHeight;
 
-    static constexpr double MOVE_STEP_SCREEN = 15.0;
+    static constexpr double MOVE_STEP_SCREEN = 5.3;
 
     QTimer* m_moveTimer;
 

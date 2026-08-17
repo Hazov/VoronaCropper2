@@ -44,18 +44,10 @@ QImage ImageItem::loadImage(
             .suffix()
             .toLower();
 
-    qDebug() << "FILE:"
-             << filePath;
-
-    qDebug() << "SUFFIX:"
-             << suffix;
-
 
     if (suffix == "heic" ||
         suffix == "heif")
     {
-        qDebug() << "HEIC branch";
-
         return loadHeicImage(filePath);
     }
 
@@ -71,8 +63,6 @@ QImage ImageItem::loadHeicImage(
 
     if (!context)
     {
-        qDebug()
-            << "HEIC: не удалось создать heif_context";
 
         return QImage();
     }
@@ -82,10 +72,6 @@ QImage ImageItem::loadHeicImage(
 
     if (!file.open(QIODevice::ReadOnly))
     {
-        qDebug()
-            << "HEIC: не удалось открыть файл:"
-            << filePath;
-
         heif_context_free(context);
 
         return QImage();
@@ -109,9 +95,6 @@ QImage ImageItem::loadHeicImage(
 
     if (error.code != heif_error_Ok)
     {
-        qDebug()
-            << "HEIC: ошибка чтения:"
-            << error.message;
 
         heif_context_free(context);
 
@@ -123,12 +106,7 @@ QImage ImageItem::loadHeicImage(
         heif_context_get_number_of_top_level_images(
             context
         );
-
-    qDebug()
-        << "Количество изображений HEIC:"
-        << count;
-
-
+    
     heif_image_handle* handle = nullptr;
 
 
@@ -141,9 +119,6 @@ QImage ImageItem::loadHeicImage(
 
     if (error.code != heif_error_Ok)
     {
-        qDebug()
-            << "HEIC: не удалось получить primary image:"
-            << error.message;
 
         heif_context_free(context);
 
@@ -173,9 +148,6 @@ QImage ImageItem::loadHeicImage(
 
     if (error.code != heif_error_Ok)
     {
-        qDebug()
-            << "HEIC: ошибка декодирования:"
-            << error.message;
 
         heif_image_handle_release(handle);
         heif_context_free(context);
@@ -197,8 +169,6 @@ QImage ImageItem::loadHeicImage(
 
     if (!data)
     {
-        qDebug()
-            << "HEIC: не удалось получить данные изображения";
 
         heif_image_release(image);
         heif_image_handle_release(handle);

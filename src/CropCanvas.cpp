@@ -678,6 +678,7 @@ void CropCanvas::keyPressEvent(
             return;
         }
 
+
         emit backRequested();
 
         event->accept();
@@ -3245,4 +3246,47 @@ QImage CropCanvas::applyCurves(
     }
 
     return result;
+}
+
+bool CropCanvas::isDefaultCrop() const
+{
+    if (m_image.isNull())
+        return true;
+
+
+    double defaultWidth;
+    double defaultHeight;
+
+
+    const double ratio =
+        m_cropWidth / m_cropHeight;
+
+
+    const double imageWidth =
+        m_image.width();
+
+    const double imageHeight =
+        m_image.height();
+
+
+    if (imageWidth / imageHeight > ratio)
+    {
+        defaultHeight = imageHeight;
+        defaultWidth = imageHeight * ratio;
+    }
+    else
+    {
+        defaultWidth = imageWidth;
+        defaultHeight = imageWidth / ratio;
+    }
+
+
+    const double eps = 0.5;
+
+
+    return
+        std::abs(m_cropPixelWidth - defaultWidth) < eps &&
+        std::abs(m_cropPixelHeight - defaultHeight) < eps &&
+        std::abs(m_cropCenterX - imageWidth / 2.0) < eps &&
+        std::abs(m_cropCenterY - imageHeight / 2.0) < eps;
 }

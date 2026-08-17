@@ -473,10 +473,10 @@ void MainWindow::setupUi()
     cropHintsWidget =
         new QWidget(stageHintWidget);
 
-    stageHintLayout->addWidget(cropHintsWidget);
-
     QHBoxLayout* cropHintsLayout =
         new QHBoxLayout(cropHintsWidget);
+
+    stageHintLayout->addWidget(cropHintsWidget);
 
 
     cropHintsLayout->setSpacing(50);
@@ -700,12 +700,6 @@ void MainWindow::setupUi()
 
     cropHintsLayout->addLayout(
         cropXHintLayout
-    );
-
-
-    // Добавляем три колонки в общий layout
-    stageHintLayout->addLayout(
-        cropHintsLayout
     );
 
 
@@ -1107,6 +1101,13 @@ void MainWindow::setupUi()
         &MainWindow::goForward
     );
 
+    connect(
+        markLabel,
+        &QLabel::linkActivated,
+        this,
+        &MainWindow::markCurrentPhoto
+    );
+
 
     footerLayout->addWidget(
         backLabel
@@ -1390,19 +1391,7 @@ void MainWindow::showCurrentImage()
         std::swap(width, height);
     }
 
-    qDebug() << "BEFORE SET:"
-         << item.cropWidthCm()
-         << item.cropHeightCm();
-
-    qDebug() << "NEW:"
-             << width
-             << height;
-
     item.setCropSize(width, height);
-    
-    qDebug() << "AFTER SET:"
-         << item.cropWidthCm()
-         << item.cropHeightCm();
 
     widthEdit->setText(
         QString::number(
@@ -1802,9 +1791,9 @@ void MainWindow::applyCropSize()
         clampedWidth,
         clampedHeight
     );
-    
+
     if (currentImageIndex >= 0 &&
-    currentImageIndex < images.size())
+        currentImageIndex < images.size())
     {
         images[currentImageIndex].setCropSize(
             clampedWidth,
@@ -1852,10 +1841,6 @@ void MainWindow::saveCurrentCropState()
         width,
         height
     );
-    
-    qDebug() << "SAVE STATE:"
-         << width
-         << height;
 
     lastCropWidth = width;
     lastCropHeight = height;
@@ -2055,8 +2040,19 @@ void MainWindow::goBack()
 
     if (currentStage == Stage::Crop)
     {
+        // Сначала проверяем рамку
+        if (!cropCanvas->isDefaultCrop())
+        {
+            cropCanvas->resetCrop();
+            return;
+        }
+
+
+        // Если рамка уже стандартная —
+        // идём на предыдущую фотографию
         if (currentImageIndex <= 0)
             return;
+
 
         saveCurrentCropState();
 
@@ -2685,10 +2681,6 @@ bool MainWindow::saveImage(const ImageItem& item)
     if (!saveDir.mkpath(
         fileInfo.absolutePath()))
     {
-        qDebug()
-            << "Cannot create:"
-            << fileInfo.absolutePath();
-
         return false;
     }
 
@@ -2887,43 +2879,34 @@ void MainWindow::setFolderIcon(const QString& folderPath)
     QString desktopIniPath =
         QDir(folderPath).filePath("desktop.ini");
 
-
     QString exePath =
         QCoreApplication::applicationFilePath();
 
-
     QFile file(desktopIniPath);
 
-    if (file.open(QIODevice::WriteOnly |
-        QIODevice::Text))
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text))
     {
         QTextStream out(&file);
 
         out << "[.ShellClassInfo]\n";
         out << "IconResource="
             << QDir::toNativeSeparators(exePath)
-            << ",0\n";
+            << ",1\n";
 
         file.close();
     }
 
-
     SetFileAttributesW(
         reinterpret_cast<LPCWSTR>(
-            QDir::toNativeSeparators(
-                desktopIniPath
-            ).utf16()
+            QDir::toNativeSeparators(desktopIniPath).utf16()
         ),
         FILE_ATTRIBUTE_HIDDEN |
         FILE_ATTRIBUTE_SYSTEM
     );
 
-
     SetFileAttributesW(
         reinterpret_cast<LPCWSTR>(
-            QDir::toNativeSeparators(
-                folderPath
-            ).utf16()
+            QDir::toNativeSeparators(folderPath).utf16()
         ),
         FILE_ATTRIBUTE_SYSTEM
     );

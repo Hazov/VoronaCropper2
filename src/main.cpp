@@ -35,13 +35,7 @@ int main(int argc, char* argv[])
 
     QApplication app(argc, argv);
     
-    QFile file(":/logo.ico");
-
-    qDebug() << file.exists();
-    
     QIcon icon(":/logo.ico");
-
-    qDebug() << "Icon valid:" << !icon.isNull();
 
     app.setWindowIcon(icon);
     

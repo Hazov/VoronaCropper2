@@ -15,7 +15,7 @@ qt_add_resources(VORONA_RESOURCES
         resources.qrc
 )
 
-qt_add_executable(VoronaCropper
+qt_add_executable(VoronaCropper WIN32
         app.rc
         ${VORONA_RESOURCES}
 
@@ -61,5 +61,10 @@ file(COPY
 
 file(COPY
         "${CMAKE_SOURCE_DIR}/logo.png"
+        DESTINATION "${CMAKE_BINARY_DIR}"
+)
+
+file(COPY
+        "${CMAKE_SOURCE_DIR}/libheif.dll"
         DESTINATION "${CMAKE_BINARY_DIR}"
 )
