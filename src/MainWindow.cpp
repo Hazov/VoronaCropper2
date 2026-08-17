@@ -277,9 +277,12 @@ void MainWindow::setupUi()
         QDoubleValidator::StandardNotation
     );
 
-    sizeValidator->setLocale(
-        QLocale::c()
+    QLocale locale = QLocale::system();
+    locale.setNumberOptions(
+        QLocale::RejectGroupSeparator
     );
+
+    sizeValidator->setLocale(locale);
 
 
     widthEdit->setValidator(
@@ -288,6 +291,20 @@ void MainWindow::setupUi()
 
     heightEdit->setValidator(
         sizeValidator
+    );
+
+    connect(
+        widthEdit,
+        &QLineEdit::returnPressed,
+        this,
+        &MainWindow::focusImage
+    );
+
+    connect(
+        heightEdit,
+        &QLineEdit::returnPressed,
+        this,
+        &MainWindow::focusImage
     );
 
 
@@ -441,9 +458,7 @@ void MainWindow::setupUi()
         new QWidget(this);
 
     QVBoxLayout* stageHintLayout =
-        new QVBoxLayout(
-            stageHintWidget
-        );
+        new QVBoxLayout(stageHintWidget);
 
     stageHintLayout->setContentsMargins(
         0,
@@ -455,7 +470,12 @@ void MainWindow::setupUi()
     stageHintLayout->setSpacing(6);
 
 
-    stageTitleLabel = new QLabel();
+    // -------------------------
+    // Заголовок подсказки
+    // -------------------------
+
+    stageTitleLabel =
+        new QLabel(stageHintWidget);
 
     stageTitleLabel->setAlignment(
         Qt::AlignCenter
@@ -466,10 +486,91 @@ void MainWindow::setupUi()
     );
 
 
-    keysImageLabel =
+    // -------------------------
+    // Три подсказки горизонтально
+    // -------------------------
+
+    cropHintsWidget =
+        new QWidget(stageHintWidget);
+
+    stageHintLayout->addWidget(cropHintsWidget);
+
+    QHBoxLayout* cropHintsLayout =
+        new QHBoxLayout(cropHintsWidget);
+
+
+    cropHintsLayout->setSpacing(50);
+
+    cropHintsLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    // =========================
+    // ESC
+    // =========================
+
+    QVBoxLayout* cropEscHintLayout =
+        new QVBoxLayout();
+
+    cropEscHintLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    escImageLabel =
+        new QLabel(stageHintWidget);
+
+    escImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+    escImageLabel->setPixmap(
+        QPixmap(
+            "light/esc_key.png"
+        )
+    );
+
+
+    escLabel =
         new QLabel(
+            "Сбросить рамку",
             stageHintWidget
         );
+
+    escLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    cropEscHintLayout->addWidget(
+        escImageLabel
+    );
+
+    cropEscHintLayout->addWidget(
+        escLabel
+    );
+
+
+    cropHintsLayout->addLayout(
+        cropEscHintLayout
+    );
+
+
+    // =========================
+    // Стрелки
+    // =========================
+
+    QVBoxLayout* cropArrowsHintLayout =
+        new QVBoxLayout();
+
+    cropArrowsHintLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    keysImageLabel =
+        new QLabel(stageHintWidget);
 
     keysImageLabel->setAlignment(
         Qt::AlignCenter
@@ -479,10 +580,6 @@ void MainWindow::setupUi()
         QPixmap(
             "light/keys.png"
         )
-    );
-
-    stageHintLayout->addWidget(
-        keysImageLabel
     );
 
 
@@ -496,13 +593,133 @@ void MainWindow::setupUi()
         Qt::AlignCenter
     );
 
-    stageHintLayout->addWidget(
+
+    cropHintsWidget->hide();
+
+
+    cropArrowsHintLayout->addWidget(
+        keysImageLabel
+    );
+
+    cropArrowsHintLayout->addWidget(
         movementLabel
     );
 
-    keysImageLabel->hide();
-    movementLabel->hide();
 
+    cropHintsLayout->addLayout(
+        cropArrowsHintLayout
+    );
+
+    // =========================
+    // Shift
+    // =========================
+
+    QVBoxLayout* cropShiftHintLayout =
+        new QVBoxLayout();
+
+    cropShiftHintLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    shiftImageLabel =
+        new QLabel(stageHintWidget);
+
+    shiftImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+    shiftImageLabel->setPixmap(
+        QPixmap(
+            "light/shift_key.png"
+        )
+    );
+
+
+    shiftLabel =
+        new QLabel(
+            "По размеру рамки",
+            stageHintWidget
+        );
+
+    shiftLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    cropShiftHintLayout->addWidget(
+        shiftImageLabel
+    );
+
+    cropShiftHintLayout->addWidget(
+        shiftLabel
+    );
+
+
+    cropHintsLayout->addLayout(
+        cropShiftHintLayout
+    );
+
+    // =========================
+    // Shift
+    // =========================
+
+    QVBoxLayout* cropXHintLayout =
+        new QVBoxLayout();
+
+    cropXHintLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    xImageLabel =
+        new QLabel(stageHintWidget);
+
+    xImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+    xImageLabel->setPixmap(
+        QPixmap(
+            "light/x_key.png"
+        )
+    );
+
+
+    xLabel =
+        new QLabel(
+            "Ориентация",
+            stageHintWidget
+        );
+
+    xLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    cropXHintLayout->addWidget(
+        xImageLabel
+    );
+
+    cropXHintLayout->addWidget(
+        xLabel
+    );
+
+
+    cropHintsLayout->addLayout(
+        cropXHintLayout
+    );
+
+
+    // Добавляем три колонки в общий layout
+    stageHintLayout->addLayout(
+        cropHintsLayout
+    );
+
+
+    // =========================
+    // Блок Light
+    // =========================
 
     lightStatusWidget =
         new QWidget(
@@ -516,6 +733,7 @@ void MainWindow::setupUi()
         new QGridLayout(
             lightStatusWidget
         );
+
 
     lightGrid->setContentsMargins(
         0,
@@ -542,12 +760,6 @@ void MainWindow::setupUi()
         Qt::AlignCenter
     );
 
-    lightGrid->addWidget(
-        curvesImageLabel,
-        0,
-        0
-    );
-
 
     levelsImageLabel =
         new QLabel(
@@ -556,6 +768,13 @@ void MainWindow::setupUi()
 
     levelsImageLabel->setAlignment(
         Qt::AlignCenter
+    );
+
+
+    lightGrid->addWidget(
+        curvesImageLabel,
+        0,
+        0
     );
 
     lightGrid->addWidget(
@@ -575,12 +794,6 @@ void MainWindow::setupUi()
         Qt::AlignCenter
     );
 
-    lightGrid->addWidget(
-        levelsTextLabel,
-        1,
-        0
-    );
-
 
     curvesTextLabel =
         new QLabel(
@@ -590,6 +803,13 @@ void MainWindow::setupUi()
 
     curvesTextLabel->setAlignment(
         Qt::AlignCenter
+    );
+
+
+    lightGrid->addWidget(
+        levelsTextLabel,
+        1,
+        0
     );
 
     lightGrid->addWidget(
@@ -604,6 +824,7 @@ void MainWindow::setupUi()
     );
 
 
+    // Добавляем блок подсказок в основной layout
     mainLayout->addWidget(
         stageHintWidget
     );
@@ -1282,8 +1503,7 @@ void MainWindow::resetProject()
     saveButton->hide();
     saveProgressBar->hide();
 
-    keysImageLabel->hide();
-    movementLabel->hide();
+    cropHintsWidget->hide();
 
     backLabel->show();
     markLabel->show();
@@ -1809,8 +2029,7 @@ void MainWindow::updateStageHint()
     {
         if (!images.isEmpty())
         {
-            keysImageLabel->show();
-            movementLabel->show();
+            cropHintsWidget->show();
             stageTitleLabel->setText("Настройка рамки");
         }
         else
@@ -1831,8 +2050,7 @@ void MainWindow::updateStageHint()
             "Настройка света"
         );
 
-        keysImageLabel->hide();
-        movementLabel->hide();
+        cropHintsWidget->hide();
         lightStatusWidget->show();
 
         updateLightStatusWidgets();
@@ -1845,8 +2063,7 @@ void MainWindow::updateStageHint()
         "Обработка завершена"
     );
 
-    keysImageLabel->hide();
-    movementLabel->hide();
+    cropHintsWidget->hide();
     lightStatusWidget->hide();
 }
 
@@ -2551,4 +2768,17 @@ void MainWindow::setFolderIcon(const QString& folderPath)
         ),
         FILE_ATTRIBUTE_SYSTEM
     );
+}
+
+void MainWindow::focusImage()
+{
+    if (!images.isEmpty() &&
+        cropCanvas->isVisible())
+    {
+        cropCanvas->setFocus();
+    }
+    else
+    {
+        clearFocus();
+    }
 }

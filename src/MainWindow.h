@@ -100,8 +100,11 @@ private:
     SaveSourceType::MultipleFiles;
 
     QString sourceDirectory;
-    QString saveHash;   
-    
+    QString saveHash;
+    QWidget* cropHintsWidget;
+    QLabel* xImageLabel;
+    QLabel* xLabel;
+
     void choosePhotosFromDialog();
     
     void applyCropSize() const;
@@ -129,7 +132,11 @@ private:
     void updateStageHint();
     QWidget *lightStatusWidget;
     QLabel *keysImageLabel;
+    QLabel *shiftImageLabel;
+    QLabel *escImageLabel;
     
+    QLabel *shiftLabel;
+    QLabel *escLabel;
     QLabel *movementLabel;
     
     bool m_fitImageMode = false;
@@ -160,5 +167,7 @@ private:
     QProgressBar *saveProgressBar;
     
     void setFolderIcon(const QString& folderPath);
+    
+    void focusImage();
     
 };
