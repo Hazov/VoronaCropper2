@@ -24,8 +24,10 @@ ImageItem::ImageItem(const QString &filePath)
         m_cropCenterY =
             m_originalImage.height() / 2.0;
 
-        if (m_originalImage.width() >
-            m_originalImage.height())
+        m_cropWidthCm = 10.0;
+        m_cropHeightCm = 15.0;
+
+        if (m_originalImage.width() > m_originalImage.height())
         {
             m_cropWidthCm = 15.0;
             m_cropHeightCm = 10.0;

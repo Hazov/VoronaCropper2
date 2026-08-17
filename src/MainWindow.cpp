@@ -265,34 +265,6 @@ void MainWindow::setupUi()
     heightEdit->setFixedWidth(70);
 
 
-    auto* sizeValidator =
-        new QDoubleValidator(
-            1.0,
-            1000.0,
-            2,
-            this
-        );
-
-    sizeValidator->setNotation(
-        QDoubleValidator::StandardNotation
-    );
-
-    QLocale locale = QLocale::system();
-    locale.setNumberOptions(
-        QLocale::RejectGroupSeparator
-    );
-
-    sizeValidator->setLocale(locale);
-
-
-    widthEdit->setValidator(
-        sizeValidator
-    );
-
-    heightEdit->setValidator(
-        sizeValidator
-    );
-
     connect(
         widthEdit,
         &QLineEdit::returnPressed,
@@ -312,14 +284,22 @@ void MainWindow::setupUi()
         widthEdit,
         &QLineEdit::textChanged,
         this,
-        &MainWindow::applyCropSize
+        [this]()
+        {
+            normalizeSizeInput(widthEdit);
+            applyCropSize();
+        }
     );
 
     connect(
         heightEdit,
         &QLineEdit::textChanged,
         this,
-        &MainWindow::applyCropSize
+        [this]()
+        {
+            normalizeSizeInput(heightEdit);
+            applyCropSize();
+        }
     );
 
 
@@ -517,6 +497,9 @@ void MainWindow::setupUi()
         Qt::AlignCenter
     );
 
+    cropEscHintLayout->setSpacing(2);
+    cropEscHintLayout->setContentsMargins(0, 0, 0, 0);
+
 
     escImageLabel =
         new QLabel(stageHintWidget);
@@ -567,6 +550,9 @@ void MainWindow::setupUi()
     cropArrowsHintLayout->setAlignment(
         Qt::AlignCenter
     );
+
+    cropArrowsHintLayout->setSpacing(2);
+    cropArrowsHintLayout->setContentsMargins(0, 0, 0, 0);
 
 
     keysImageLabel =
@@ -621,6 +607,9 @@ void MainWindow::setupUi()
         Qt::AlignCenter
     );
 
+    cropShiftHintLayout->setSpacing(2);
+    cropShiftHintLayout->setContentsMargins(0, 0, 0, 0);
+
 
     shiftImageLabel =
         new QLabel(stageHintWidget);
@@ -661,7 +650,7 @@ void MainWindow::setupUi()
     );
 
     // =========================
-    // Shift
+    // X
     // =========================
 
     QVBoxLayout* cropXHintLayout =
@@ -670,6 +659,9 @@ void MainWindow::setupUi()
     cropXHintLayout->setAlignment(
         Qt::AlignCenter
     );
+
+    cropXHintLayout->setSpacing(2);
+    cropXHintLayout->setContentsMargins(0, 0, 0, 0);
 
 
     xImageLabel =
@@ -729,69 +721,88 @@ void MainWindow::setupUi()
     lightStatusWidget->hide();
 
 
-    QGridLayout* lightGrid =
-        new QGridLayout(
-            lightStatusWidget
-        );
+    QHBoxLayout* lightMainLayout =
+        new QHBoxLayout(lightStatusWidget);
 
-
-    lightGrid->setContentsMargins(
+    lightMainLayout->setContentsMargins(
         0,
         0,
         0,
         0
     );
 
-    lightGrid->setHorizontalSpacing(
-        20
+    lightMainLayout->setSpacing(50);
+
+    lightMainLayout->setAlignment(
+        Qt::AlignCenter
     );
 
-    lightGrid->setVerticalSpacing(
-        4
+
+    // =========================================================
+    // Левая ячейка: left_key + curves + right_key
+    // =========================================================
+
+    QVBoxLayout* curvesHintLayout =
+        new QVBoxLayout();
+
+    curvesHintLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+    curvesHintLayout->setSpacing(2);
+    curvesHintLayout->setContentsMargins(0, 0, 0, 0);
+
+
+    QHBoxLayout* curvesKeysLayout =
+        new QHBoxLayout();
+
+    curvesKeysLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    QLabel* leftKeyImageLabel =
+        new QLabel(lightStatusWidget);
+
+    leftKeyImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+    leftKeyImageLabel->setPixmap(
+        QPixmap("light/left_key.png")
     );
 
 
     curvesImageLabel =
-        new QLabel(
-            lightStatusWidget
-        );
+        new QLabel(lightStatusWidget);
 
     curvesImageLabel->setAlignment(
         Qt::AlignCenter
     );
 
 
-    levelsImageLabel =
-        new QLabel(
-            lightStatusWidget
-        );
+    QLabel* rightKeyImageLabel =
+        new QLabel(lightStatusWidget);
 
-    levelsImageLabel->setAlignment(
+    rightKeyImageLabel->setAlignment(
         Qt::AlignCenter
     );
 
-
-    lightGrid->addWidget(
-        curvesImageLabel,
-        0,
-        0
-    );
-
-    lightGrid->addWidget(
-        levelsImageLabel,
-        0,
-        1
+    rightKeyImageLabel->setPixmap(
+        QPixmap("light/right_key.png")
     );
 
 
-    levelsTextLabel =
-        new QLabel(
-            "Уровни",
-            lightStatusWidget
-        );
+    curvesKeysLayout->addWidget(
+        leftKeyImageLabel
+    );
 
-    levelsTextLabel->setAlignment(
-        Qt::AlignCenter
+    curvesKeysLayout->addWidget(
+        curvesImageLabel
+    );
+
+    curvesKeysLayout->addWidget(
+        rightKeyImageLabel
     );
 
 
@@ -806,16 +817,97 @@ void MainWindow::setupUi()
     );
 
 
-    lightGrid->addWidget(
-        levelsTextLabel,
-        1,
-        0
+    curvesHintLayout->addLayout(
+        curvesKeysLayout
     );
 
-    lightGrid->addWidget(
-        curvesTextLabel,
-        1,
-        1
+    curvesHintLayout->addWidget(
+        curvesTextLabel
+    );
+
+
+    // =========================================================
+    // Правая ячейка: levels + vert_keys
+    // =========================================================
+
+    QVBoxLayout* levelsHintLayout =
+        new QVBoxLayout();
+
+    levelsHintLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+    levelsHintLayout->setSpacing(2);
+    levelsHintLayout->setContentsMargins(0, 0, 0, 0);
+
+
+    QHBoxLayout* levelsKeysLayout =
+        new QHBoxLayout();
+
+    levelsKeysLayout->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    levelsImageLabel =
+        new QLabel(lightStatusWidget);
+
+    levelsImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    QLabel* vertKeysImageLabel =
+        new QLabel(lightStatusWidget);
+
+    vertKeysImageLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+    vertKeysImageLabel->setPixmap(
+        QPixmap("light/vert_keys.png")
+    );
+
+
+    levelsKeysLayout->addWidget(
+        levelsImageLabel
+    );
+
+    levelsKeysLayout->addWidget(
+        vertKeysImageLabel
+    );
+
+
+    levelsTextLabel =
+        new QLabel(
+            "Уровни",
+            lightStatusWidget
+        );
+
+    levelsTextLabel->setAlignment(
+        Qt::AlignCenter
+    );
+
+
+    levelsHintLayout->addLayout(
+        levelsKeysLayout
+    );
+
+    levelsHintLayout->addWidget(
+        levelsTextLabel
+    );
+
+
+    // =========================================================
+    // Добавляем две ячейки горизонтально
+    // =========================================================
+
+    lightMainLayout->addLayout(
+        curvesHintLayout
+    );
+
+    lightMainLayout->addLayout(
+        levelsHintLayout
     );
 
 
@@ -1226,6 +1318,7 @@ void MainWindow::showCurrentImage()
     ImageItem& item =
         images[currentImageIndex];
 
+
     const QImage& image =
         item.image();
 
@@ -1249,17 +1342,67 @@ void MainWindow::showCurrentImage()
 
     cropCanvas->show();
 
-    cropCanvas->setDisplayImage(
-        image,
-        currentStage == Stage::Light
-    );
+    if (currentStage == Stage::Light &&
+        !item.croppedImage().isNull())
+    {
+        cropCanvas->setDisplayImage(
+            item.croppedImage(),
+            true
+        );
+    }
+    else
+    {
+        cropCanvas->setDisplayImage(
+            image,
+            currentStage == Stage::Light
+        );
+    }
 
-    // Определяем ориентацию фотографии.
-    const double width =
-        item.cropWidthCm();
+    // Берём последний размер, который ввёл пользователь.
+    double width = lastCropWidth;
+    double height = lastCropHeight;
 
-    const double height =
-        item.cropHeightCm();
+
+    // Если это первое фото и пользователь ещё ничего не вводил,
+    // берём стандартный размер фото.
+    if (width <= 0 || height <= 0)
+    {
+        width = item.cropWidthCm();
+        height = item.cropHeightCm();
+    }
+
+
+    // ориентация фотографии
+    const bool imageLandscape =
+        item.image().width() >
+        item.image().height();
+
+
+    // ориентация сохранённой рамки
+    const bool cropLandscape =
+        width > height;
+
+
+    // если ориентация рамки не совпадает с фото,
+    // меняем стороны местами
+    if (imageLandscape != cropLandscape)
+    {
+        std::swap(width, height);
+    }
+
+    qDebug() << "BEFORE SET:"
+         << item.cropWidthCm()
+         << item.cropHeightCm();
+
+    qDebug() << "NEW:"
+             << width
+             << height;
+
+    item.setCropSize(width, height);
+    
+    qDebug() << "AFTER SET:"
+         << item.cropWidthCm()
+         << item.cropHeightCm();
 
     widthEdit->setText(
         QString::number(
@@ -1596,7 +1739,7 @@ void MainWindow::choosePhotosFromDialog()
     loadImageFiles(imageFiles);
 }
 
-void MainWindow::applyCropSize() const
+void MainWindow::applyCropSize()
 {
     bool widthOk = false;
     bool heightOk = false;
@@ -1659,6 +1802,15 @@ void MainWindow::applyCropSize() const
         clampedWidth,
         clampedHeight
     );
+    
+    if (currentImageIndex >= 0 &&
+    currentImageIndex < images.size())
+    {
+        images[currentImageIndex].setCropSize(
+            clampedWidth,
+            clampedHeight
+        );
+    }
 }
 
 void MainWindow::toggleCropOrientation()
@@ -1700,6 +1852,13 @@ void MainWindow::saveCurrentCropState()
         width,
         height
     );
+    
+    qDebug() << "SAVE STATE:"
+         << width
+         << height;
+
+    lastCropWidth = width;
+    lastCropHeight = height;
 
     item.setCropCenter(
         cropCanvas->cropCenterX(),
@@ -2780,5 +2939,51 @@ void MainWindow::focusImage()
     else
     {
         clearFocus();
+    }
+}
+
+void MainWindow::normalizeSizeInput(QLineEdit* edit)
+{
+    QString text = edit->text();
+
+    QString result;
+    bool hasSeparator = false;
+
+    for (QChar ch : text)
+    {
+        if (ch.isDigit())
+        {
+            result += ch;
+        }
+        else
+        {
+            // любой символ превращаем в точку
+            if (!hasSeparator)
+            {
+                result += '.';
+                hasSeparator = true;
+            }
+        }
+    }
+
+    // если точка стоит первой — добавляем 0
+    if (result.startsWith('.'))
+    {
+        result = "0" + result;
+    }
+
+    if (text != result)
+    {
+        int cursorPosition = edit->cursorPosition();
+
+        edit->blockSignals(true);
+
+        edit->setText(result);
+
+        edit->setCursorPosition(
+            qMin(cursorPosition, result.length())
+        );
+
+        edit->blockSignals(false);
     }
 }

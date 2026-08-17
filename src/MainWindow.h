@@ -107,7 +107,7 @@ private:
 
     void choosePhotosFromDialog();
     
-    void applyCropSize() const;
+    void applyCropSize();
     
     void toggleCropOrientation();
     
@@ -169,5 +169,13 @@ private:
     void setFolderIcon(const QString& folderPath);
     
     void focusImage();
+    
+    void normalizeSizeInput(QLineEdit* edit);
+    
+    double currentCropWidth = 10;
+    double currentCropHeight = 15;
+    
+    double lastCropWidth = 10.0;
+    double lastCropHeight = 15.0;
     
 };
