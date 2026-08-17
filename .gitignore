@@ -6,6 +6,7 @@ out/
 .vs/
 .vscode/
 
+
 # Compiled files
 *.o
 *.obj
@@ -18,7 +19,10 @@ CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-
+Release
+cmake-build-release
+cmake-build-debug
+cmake-build-debug-qt-mingw
 # Generated files
 *.user
 *.suo

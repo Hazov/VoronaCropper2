@@ -2567,14 +2567,14 @@ QRectF CropCanvas::displayImageRectOnScreen() const
 
     if (m_fitImageWithMargins)
     {
-        // 4 мм = 0.4 см
+        // 3 мм = 0.3 см
         marginX =
             cropRect.width()
-            * (0.4 / m_cropWidthCm);
+            * (0.2 / m_cropWidthCm);
 
         marginY =
             cropRect.height()
-            * (0.4 / m_cropHeightCm);
+            * (0.2 / m_cropHeightCm);
     }
 
     const QRectF availableRect =
@@ -2686,11 +2686,11 @@ QImage CropCanvas::createFitCropImage() const
     {
         marginX =
             outputWidth *
-            (0.4 / m_cropWidthCm);
+            (0.2 / m_cropWidthCm);
 
         marginY =
             outputHeight *
-            (0.4 / m_cropHeightCm);
+            (0.2 / m_cropHeightCm);
     }
 
     const QRectF availableRect(

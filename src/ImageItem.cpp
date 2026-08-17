@@ -475,11 +475,11 @@ void ImageItem::createFittedCroppedImage(
     {
         const double marginX =
             outputWidth *
-            (0.4 / m_cropWidthCm);
+            (0.2 / m_cropWidthCm);
 
         const double marginY =
             outputHeight *
-            (0.4 / m_cropHeightCm);
+            (0.2 / m_cropHeightCm);
 
         targetRect.adjust(
             qRound(marginX),

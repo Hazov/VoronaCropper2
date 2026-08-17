@@ -166,7 +166,7 @@ private:
     double m_overflowTop;
     double m_overflowBottom;
 
-    static constexpr double MAX_OVERFLOW_MM = 4.0;
+    static constexpr double MAX_OVERFLOW_MM = 2.0;
 
     double maxOverflowScreenPixels(bool horizontal) const;
     double screenToImagePixels(double screenPixels) const;
