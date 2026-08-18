@@ -802,7 +802,7 @@ void MainWindow::setupUi()
 
     curvesTextLabel =
         new QLabel(
-            "Кривые",
+            "Уровни",
             lightStatusWidget
         );
 
@@ -874,7 +874,7 @@ void MainWindow::setupUi()
 
     levelsTextLabel =
         new QLabel(
-            "Уровни",
+            "Кривые",
             lightStatusWidget
         );
 
